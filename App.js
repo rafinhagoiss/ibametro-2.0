@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { auth, db } from './src/config/firebase'; 
 import { onAuthStateChanged } from 'firebase/auth'; 
-import { doc, getDoc } from 'firebase/firestore'; 
+import { doc, getDoc } from 'firebase/firestore';
 
+import PainelChamadosScreen from './src/screens/PainelChamadosScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import ListaScreen from './src/screens/ListaScreen';
 import CadastroScreen from './src/screens/CadastroScreen';
@@ -15,7 +16,6 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [carregando, setCarregando] = useState(true); 
   const [ativoSelecionado, setAtivoSelecionado] = useState(null);
-  const [chamados, setChamados] = useState([]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -50,19 +50,7 @@ export default function App() {
     return unsubscribe; 
   }, []);
 
-  const handleVerDetalhes = (ativo) => {
-    setAtivoSelecionado(ativo);
-    setTelaAtual('detalhes');
-  };
-
-  const handleAbrirChamado = (idAtivo, descricaoProblema) => {
-    setChamados((chamadosAtuais) => [
-      ...chamadosAtuais,
-      { id: Math.random().toString(), idAtivo, usuario, descricaoProblema, status: 'Pendente' }
-    ]);
-    setTelaAtual('lista');
-  };
-
+  // ⏳ 1º: Se estiver carregando a autenticação do Firebase, mostra o Spinner primeiro
   if (carregando) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f7fb' }}>
@@ -70,30 +58,45 @@ export default function App() {
       </View>
     );
   }
-
+  
+  // 🚪 RENDERIZAÇÃO DAS TELAS (Só executa após o carregamento finalizar)
   if (telaAtual === 'login') return <LoginScreen />; 
+  
   if (telaAtual === 'cadastro') return <CadastroScreen onVoltar={() => setTelaAtual('lista')} />;
+  
+  // 📊 DASHBOARD GERAL DE CHAMADOS
+  if (telaAtual === 'painelChamados') {
+    return (
+      <PainelChamadosScreen 
+        onVoltar={() => setTelaAtual('lista')} 
+      />
+    );
+  }
+
   if (telaAtual === 'detalhes') {
     return (
       <DetalheAtivoScreen 
         ativo={ativoSelecionado}
         isAdmin={isAdmin} 
-        chamados={chamados} 
-        onAtualizarStatus={() => setTelaAtual('lista')}
-        onAbrirChamado={handleAbrirChamado} 
+        usuarioLogado={usuario} 
         onVoltar={() => setTelaAtual('lista')}
       />
     );
   }
 
-  return (
-    <ListaScreen 
-      usuarioLogado={usuario} 
-      isAdmin={isAdmin} 
-      chamados={chamados} 
-      onNavegarParaCadastro={() => setTelaAtual('cadastro')} 
-      onLogoff={() => auth.signOut()} 
-      onSelecionarAtivo={handleVerDetalhes}
-    />
-  );
+  if (telaAtual === 'lista') {
+    return (
+      <ListaScreen 
+        usuarioLogado={usuario} // 🔥 Garanta que adicionou essa linha aqui!
+        isAdmin={isAdmin}
+        onSelecionarAtivo={(ativo) => {
+          setAtivoSelecionado(ativo);
+          setTelaAtual('detalhes');
+        }}
+        onIrParaCadastro={() => setTelaAtual('cadastro')}
+        onIrParaPainelChamados={() => setTelaAtual('painelChamados')} 
+        onLogout={() => setTelaAtual('login')}
+      />
+    );
+  }
 }

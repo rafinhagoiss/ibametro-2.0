@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage"; // 🔥 Adicionado
 
 // Suas credenciais oficiais do Firebase
 const firebaseConfig = {
@@ -18,3 +19,4 @@ const app = initializeApp(firebaseConfig);
 // Exporta as instâncias prontas para o resto do aplicativo usar
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const storage = getStorage(app); // 🔥 Exportado para uso com fotos

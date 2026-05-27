@@ -9,7 +9,10 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@expo/vector-icons": "^15.0.3",
     "expo": "~54.0.33",
+    "expo-camera": "~17.0.10",
+    "expo-image-picker": "~17.0.11",
     "expo-status-bar": "~3.0.9",
     "firebase": "^12.13.0",
     "react": "19.1.0",

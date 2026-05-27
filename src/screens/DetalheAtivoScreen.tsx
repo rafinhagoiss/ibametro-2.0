@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,14 +7,20 @@ import {
   SafeAreaView,
   StatusBar,
   ScrollView,
-  TextInput,
   Alert,
   ActivityIndicator,
-  Platform, // 🔥 Importado para detectar se está no navegador ou celular
 } from 'react-native';
 
 import { db } from '../config/firebase';
-import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
+
+// 📌 Definição de Tipos e Interfaces
+type Componentes = {
+  memoriaRam: string;
+  placaMae: string;
+  armazenamento: string;
+  fonte: string;
+};
 
 interface Ativo {
   id: string;
@@ -23,196 +29,239 @@ interface Ativo {
   setor: string;
   status: string;
   descricao?: string;
+  componentes?: Componentes;
 }
 
 interface DetalheAtivoScreenProps {
   ativo: Ativo | null;
   isAdmin: boolean;
-  chamados: any[];
-  onAtualizarStatus: () => void;
-  onAbrirChamado: (idAtivo: string, descricao: string) => void;
+  usuarioLogado: string;
   onVoltar: () => void;
 }
+
+// 📦 Constantes de Configuração
+const COMPONENTES_PADRAO: Componentes = {
+  memoriaRam: 'OK',
+  placaMae: 'OK',
+  armazenamento: 'OK',
+  fonte: 'OK',
+};
+
+const NOMES_COMPONENTES: Record<keyof Componentes, string> = {
+  memoriaRam: 'Memória RAM',
+  placaMae: 'Placa-Mãe',
+  armazenamento: 'Armazenamento (SSD/HD)',
+  fonte: 'Fonte de Alimentação',
+};
+
+// Opções de status do sistema
+const OPCOES_STATUS = ['Disponível', 'Ativo', 'Manutenção'];
 
 export default function DetalheAtivoScreen({
   ativo,
   isAdmin,
-  chamados,
-  onAbrirChamado,
+  usuarioLogado,
   onVoltar,
 }: DetalheAtivoScreenProps) {
-  
-  const [excluindo, setExcluindo] = useState(false);
-  const [atualizandoStatus, setAtualizandoStatus] = useState(false);
-  const [descricaoChamado, setDescricaoChamado] = useState('');
 
+  // 🛡️ Hooks de Estado (Sempre no topo)
+  const [componentes, setComponentes] = useState<Componentes>(COMPONENTES_PADRAO);
+  const [statusGeral, setStatusGeral] = useState<string>('Disponível');
+  const [salvando, setSalvando] = useState(false);
+
+  // 🔄 Sincroniza os estados quando o ativo mudar
+  useEffect(() => {
+    if (ativo) {
+      setStatusGeral(ativo.status || 'Disponível');
+      if (ativo.componentes) {
+        setComponentes(ativo.componentes);
+      } else {
+        setComponentes(COMPONENTES_PADRAO);
+      }
+    }
+  }, [ativo]);
+
+  // 🚫 Verificação de Segurança
   if (!ativo) {
     return (
-      <SafeAreaView style={styles.container}>
-        <Text style={{ textAlign: 'center', marginTop: 50 }}>Nenhum ativo selecionado.</Text>
-      </SafeAreaView>
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorText}>Nenhum ativo selecionado.</Text>
+      </View>
     );
   }
 
-  // Filtrar os chamados deste equipamento específico
-  const chamadosDoAtivo = chamados.filter(c => c.idAtivo === ativo.id);
+  const tipoNormalizado = ativo.tipo?.toLowerCase() || '';
+  const ehComputador =
+    tipoNormalizado.includes('computador') ||
+    tipoNormalizado.includes('notebook') ||
+    tipoNormalizado.includes('pc');
 
-  // 🔄 1. FUNÇÃO PARA ALTERAR STATUS DIRETO NO FIRESTORE
-  const handleMudarStatus = async (novoStatus: string) => {
-    try {
-      setAtualizandoStatus(true);
-      const ativoDocRef = doc(db, 'ativos', ativo.id);
-      await updateDoc(ativoDocRef, { status: novoStatus });
-      alert(`Status atualizado para ${novoStatus}!`);
-      onVoltar();
-    } catch (error: any) {
-      alert('Erro ao atualizar status: ' + error.message);
-    } finally {
-      setAtualizandoStatus(false);
-    }
-  };
-
-  // 💾 2. FUNÇÃO AUXILIAR QUE DELETA DE FATO
-  const executarExclusao = async () => {
-    try {
-      setExcluindo(true);
-      const ativoDocRef = doc(db, 'ativos', ativo.id);
-      await deleteDoc(ativoDocRef);
-      alert('Equipamento descartado com sucesso!');
-      onVoltar(); 
-    } catch (error: any) {
-      alert('Erro ao excluir: ' + error.message);
-    } finally {
-      setExcluindo(false);
-    }
-  };
-
-  // 🗑️ 3. POLIFILL DO BOTÃO DESCARTAR (Web vs Mobile)
-  const handleDescartarAtivo = () => {
-    const mensagem = `Tem certeza que deseja descartar o patrimônio ${ativo.patrimonio}?`;
-
-    if (Platform.OS === 'web') {
-      // Se for no navegador do PC, usa o confirm nativo do browser
-      const confirmar = window.confirm(mensagem);
-      if (confirmar) {
-        executarExclusao();
-      }
-    } else {
-      // Se for no celular, usa o Alert do React Native
-      Alert.alert('Atenção!', mensagem, [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Confirmar Exclusão', style: 'destructive', onPress: executarExclusao },
-      ]);
-    }
-  };
-
-  // 🛠️ 4. ENVIAR NOVO CHAMADO
-  const handleEnviarChamado = () => {
-    if (!descricaoChamado.trim()) {
-      alert('Digite o problema antes de abrir o chamado!');
+  // 🛠️ Alternador de status das peças individuais
+  const handleAlternarComponente = (chave: keyof Componentes) => {
+    if (!isAdmin) {
+      Alert.alert('Acesso Restrito', 'Apenas administradores podem alterar o status de hardware.');
       return;
     }
-    onAbrirChamado(ativo.id, descricaoChamado.trim());
-    alert('Chamado aberto com sucesso!');
-    setDescricaoChamado('');
+
+    setComponentes((prev) => {
+      const novoStatus = prev[chave] === 'OK' ? 'Defeito' : 'OK';
+      
+      // Se alguma peça der defeito, muda o status geral para Manutenção automaticamente pra ajudar o técnico
+      if (novoStatus === 'Defeito') {
+        setStatusGeral('Manutenção');
+      }
+      
+      return {
+        ...prev,
+        [chave]: novoStatus,
+      };
+    });
   };
+
+  // 💾 Salva o diagnóstico E o status geral no Firestore
+  const salvarAlteracoesAtivo = async () => {
+    try {
+      setSalvando(true);
+      const ativoRef = doc(db, 'ativos', ativo.id);
+
+      // Atualiza o documento com o novo status e o estado dos componentes
+      await updateDoc(ativoRef, {
+        status: statusGeral,
+        componentes: ehComputador ? componentes : null,
+      });
+
+      Alert.alert('Sucesso', 'Registro atualizado com sucesso!');
+    } catch (error: any) {
+      console.error(error);
+      Alert.alert('Erro', error?.message || 'Erro ao atualizar o ativo.');
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  // Estilização visual dinâmica do Badge
+  const getStatusStyle = (status: string) => {
+    switch (status) {
+      case 'Disponível': return { bg: '#e8f5e9', text: '#2e7d32' };
+      case 'Ativo': return { bg: '#e3f2fd', text: '#1565c0' };
+      case 'Manutenção': return { bg: '#fff3e0', text: '#ef6c00' };
+      default: return { bg: '#f5f5f5', text: '#616161' };
+    }
+  };
+
+  const badgeGeral = getStatusStyle(ativo.status);
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
-      
-      {/* Header */}
+
+      {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onVoltar} disabled={excluindo || atualizandoStatus}>
+        <TouchableOpacity style={styles.backButton} onPress={onVoltar}>
           <Text style={styles.backButtonText}>← Voltar</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Painel do Ativo</Text>
+        <Text style={styles.title}>Ficha do Ativo</Text>
         <View style={{ width: 60 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Card de Informações */}
-        <View style={styles.infoCard}>
-          <Text style={styles.label}>Nº PATRIMÔNIO</Text>
-          <Text style={styles.patrimonioValue}>{ativo.patrimonio}</Text>
-
-          <Text style={styles.label}>EQUIPAMENTO</Text>
-          <Text style={styles.value}>{ativo.tipo}</Text>
-
-          <Text style={styles.label}>SETOR ALOCADO</Text>
-          <Text style={styles.value}>📍 {ativo.setor}</Text>
-
-          <Text style={styles.label}>STATUS ATUAL</Text>
-          <Text style={styles.statusValue}>● {ativo.status}</Text>
-
-          {ativo.descricao ? (
-            <>
-              <Text style={styles.label}>OBSERVAÇÕES TÉCNICAS</Text>
-              <Text style={styles.value}>{ativo.descricao}</Text>
-            </>
-          ) : null}
-        </View>
-
-        {/* 🔄 SEÇÃO: ALTERAR STATUS DO EQUIPAMENTO */}
-        <Text style={styles.sectionTitle}>Alterar Status</Text>
-        <View style={styles.statusRow}>
-          {['Disponível', 'Ativo', 'Manutenção'].map((st) => (
-            <TouchableOpacity 
-              key={st} 
-              disabled={atualizandoStatus || excluindo}
-              style={[styles.statusButton, ativo.status === st && styles.statusButtonActive]}
-              onPress={() => handleMudarStatus(st)}
-            >
-              <Text style={[styles.statusButtonText, ativo.status === st && styles.statusButtonTextActive]}>{st}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* 🛠️ SEÇÃO: ABRIR CHAMADO MANUTENÇÃO */}
-        <Text style={styles.sectionTitle}>Abrir Chamado Técnico</Text>
-        <View style={styles.chamadoForm}>
-          <TextInput
-            style={styles.input}
-            placeholder="Descreva o problema observado..."
-            value={descricaoChamado}
-            onChangeText={setDescricaoChamado}
-            multiline
-          />
-          <TouchableOpacity style={styles.sendButton} onPress={handleEnviarChamado}>
-            <Text style={styles.sendButtonText}>Reportar Problema</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* 📋 LISTA DE CHAMADOS EM ABERTO */}
-        <Text style={styles.sectionTitle}>Histórico de Chamados ({chamadosDoAtivo.length})</Text>
-        {chamadosDoAtivo.length === 0 ? (
-          <Text style={styles.emptyText}>Nenhum chamado pendente para este equipamento.</Text>
-        ) : (
-          chamadosDoAtivo.map((chamado) => (
-            <View key={chamado.id} style={styles.chamadoCard}>
-              <Text style={styles.chamadoUser}>Por: {chamado.usuario}</Text>
-              <Text style={styles.chamadoDesc}>{chamado.descricaoProblema}</Text>
-              <Text style={styles.chamadoStatus}>⚠️ Status: {chamado.status}</Text>
+        
+        {/* CARD PRINCIPAL (Visualização Atual) */}
+        <View style={styles.mainCard}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.patrimonioText}>{ativo.patrimonio}</Text>
+            <View style={[styles.badge, { backgroundColor: badgeGeral.bg }]}>
+              <Text style={[styles.badgeText, { color: badgeGeral.text }]}>
+                {ativo.status}
+              </Text>
             </View>
-          ))
-        )}
+          </View>
+          <Text style={styles.tipoText}>{ativo.tipo}</Text>
+          <Text style={styles.setorText}>📍 Setor: {ativo.setor}</Text>
+        </View>
 
-        {/* ❌ SEÇÃO PERIGOSA: DESCARTAR ATIVO (Apenas Admin) */}
+        {/* ⚙️ SEÇÃO: CONTROLE DE STATUS GERAL (Aparece para Admin alterar) */}
         {isAdmin && (
-          <View style={{ marginTop: 30 }}>
-            <TouchableOpacity 
-              style={[styles.deleteButton, excluindo && { opacity: 0.5 }]} 
-              onPress={handleDescartarAtivo}
-              disabled={excluindo || atualizandoStatus}
-            >
-              {excluindo ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.deleteButtonText}>❌ Descartar Equipamento do Banco</Text>
-              )}
-            </TouchableOpacity>
+          <View style={styles.statusControlCard}>
+            <Text style={styles.sectionTitle}>⚙️ Alterar Status do Aparelho</Text>
+            <Text style={styles.helpText}>Selecione o novo estado do ativo na bancada:</Text>
+            
+            <View style={styles.statusButtonGroup}>
+              {OPCOES_STATUS.map((opt) => {
+                const estiloOpt = getStatusStyle(opt);
+                const isActive = statusGeral === opt;
+                return (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[
+                      styles.statusOptButton,
+                      isActive && { backgroundColor: estiloOpt.bg, borderColor: estiloOpt.text }
+                    ]}
+                    onPress={() => setStatusGeral(opt)}
+                  >
+                    <Text style={[styles.statusOptText, isActive && { color: estiloOpt.text, fontWeight: '700' }]}>
+                      {opt}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         )}
+
+        {/* 🩺 PAINEL DE HARDWARE */}
+        {ehComputador && (
+          <View style={styles.hardwareCard}>
+            <Text style={styles.hardwareTitle}>🩺 Status de Hardware</Text>
+            {isAdmin && (
+              <Text style={styles.hardwareHelp}>
+                Toque no componente para alternar entre OK e Defeito.
+              </Text>
+            )}
+
+            {(Object.keys(componentes) as Array<keyof Componentes>).map((chave) => (
+              <TouchableOpacity
+                key={chave}
+                style={styles.componentRow}
+                disabled={!isAdmin}
+                onPress={() => handleAlternarComponente(chave)}
+              >
+                <Text style={styles.componentName}>{NOMES_COMPONENTES[chave]}</Text>
+                <View style={styles.statusIndicatorBox}>
+                  <Text style={componentes[chave] === 'OK' ? styles.statusOk : styles.statusDefeito}>
+                    {componentes[chave] === 'OK' ? '🟢 OK' : '🔴 Defeito'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* OBSERVAÇÕES TÉCNICAS */}
+        <View style={styles.infoCard}>
+          <Text style={styles.infoTitle}>📋 Observações Técnicas</Text>
+          <Text style={styles.infoText}>
+            {ativo.descricao || 'Nenhuma observação informada.'}
+          </Text>
+        </View>
+
+        {/* 💾 BOTÃO ÚNICO PARA SALVAR TUDO (Apenas Admin) */}
+        {isAdmin && (
+          <TouchableOpacity
+            style={styles.btnSalvarGeral}
+            onPress={salvarAlteracoesAtivo}
+            disabled={salvando}
+          >
+            {salvando ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.btnSalvarGeralText}>
+                Salvar Alterações do Ativo
+              </Text>
+            )}
+          </TouchableOpacity>
+        )}
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -220,30 +269,47 @@ export default function DetalheAtivoScreen({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f7fb' },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f7fb' },
+  errorText: { fontSize: 16, color: '#64748b', fontWeight: '500' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 15, backgroundColor: '#fff', borderBottomWidth: 1, borderColor: '#e2e8f0' },
+  backButton: { paddingVertical: 6, paddingHorizontal: 10 },
   backButtonText: { color: '#2f6ea8', fontWeight: '600', fontSize: 15 },
   title: { fontSize: 18, fontWeight: 'bold', color: '#1e293b' },
-  content: { padding: 20, paddingBottom: 50 },
-  infoCard: { backgroundColor: '#fff', borderRadius: 12, padding: 20, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 20 },
-  label: { fontSize: 10, fontWeight: 'bold', color: '#94a3b8', letterSpacing: 1, marginBottom: 4, marginTop: 12 },
-  patrimonioValue: { fontSize: 22, fontWeight: 'bold', color: '#2f6ea8', marginBottom: 2 },
-  value: { fontSize: 15, color: '#334155', fontWeight: '500' },
-  statusValue: { fontSize: 15, color: '#2f6ea8', fontWeight: 'bold' },
-  sectionTitle: { fontSize: 15, fontWeight: 'bold', color: '#1e293b', marginTop: 20, marginBottom: 10 },
-  statusRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-  statusButton: { flex: 1, height: 38, backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 6, justifyContent: 'center', alignItems: 'center' },
-  statusButtonActive: { backgroundColor: '#2f6ea8', borderColor: '#2f6ea8' },
-  statusButtonText: { fontSize: 13, color: '#64748b', fontWeight: '600' },
-  statusButtonTextActive: { color: '#fff' },
-  chamadoForm: { backgroundColor: '#fff', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0' },
-  input: { height: 60, textAlignVertical: 'top', padding: 8, fontSize: 14, color: '#334155' },
-  sendButton: { backgroundColor: '#475569', height: 36, borderRadius: 6, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
-  sendButtonText: { color: '#fff', fontSize: 13, fontWeight: 'bold' },
-  emptyText: { color: '#94a3b8', fontSize: 13, fontStyle: 'italic', marginBottom: 10 },
-  chamadoCard: { backgroundColor: '#fff', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 8 },
-  chamadoUser: { fontSize: 11, fontWeight: 'bold', color: '#64748b' },
-  chamadoDesc: { fontSize: 14, color: '#334155', marginVertical: 4 },
-  chamadoStatus: { fontSize: 12, color: '#b45309', fontWeight: '600' },
-  deleteButton: { height: 48, backgroundColor: '#dc2626', borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  deleteButtonText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
+  content: { padding: 16 },
+  
+  // Cards
+  mainCard: { backgroundColor: '#fff', borderRadius: 12, padding: 20, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 16, elevation: 2 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  patrimonioText: { fontSize: 20, fontWeight: 'bold', color: '#2f6ea8' },
+  badge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
+  badgeText: { fontSize: 13, fontWeight: '700' },
+  tipoText: { fontSize: 16, fontWeight: '600', color: '#334155', marginBottom: 6 },
+  setorText: { fontSize: 14, color: '#64748b' },
+  
+  // Controle de Status Geral
+  statusControlCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 16, elevation: 2 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#1e293b', marginBottom: 2 },
+  helpText: { fontSize: 12, color: '#64748b', marginBottom: 12 },
+  statusButtonGroup: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  statusOptButton: { flex: 1, height: 40, borderRadius: 8, borderWidth: 1, borderColor: '#cbd5e1', justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8fafc' },
+  statusOptText: { fontSize: 13, color: '#475569', fontWeight: '500' },
+
+  // Hardware Card
+  hardwareCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 16, elevation: 2 },
+  hardwareTitle: { fontSize: 16, fontWeight: 'bold', color: '#1e293b', marginBottom: 4 },
+  hardwareHelp: { fontSize: 12, color: '#64748b', marginBottom: 12 },
+  componentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderColor: '#f1f5f9' },
+  componentName: { fontSize: 14, fontWeight: '500', color: '#334155' },
+  statusIndicatorBox: { minWidth: 90, alignItems: 'flex-end' },
+  statusOk: { fontSize: 14, fontWeight: '600', color: '#16a34a' },
+  statusDefeito: { fontSize: 14, fontWeight: '700', color: '#dc2626' },
+  
+  // Info Card
+  infoCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 16, elevation: 2 },
+  infoTitle: { fontSize: 15, fontWeight: 'bold', color: '#1e293b', marginBottom: 8 },
+  infoText: { fontSize: 14, color: '#475569', lineHeight: 20 },
+  
+  // Botão Salvar Principal
+  btnSalvarGeral: { backgroundColor: '#2f6ea8', height: 48, borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginTop: 8, elevation: 2 },
+  btnSalvarGeralText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
 });
