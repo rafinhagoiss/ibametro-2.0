@@ -29,6 +29,11 @@ interface Ativo {
   setor: string;
   status: string;
   descricao?: string;
+  deletado?: boolean; 
+  responsavel?: string; // 🧑‍💼 NOVO: Mapeado para exibição e busca rápida
+  matricula?: string;   // 🆔 NOVO: Mapeado para o objeto do ativo
+  hostname?: string; // 💻 NOVO: Mapeado para exibição e busca rápida
+  ip?: string; // 🌐 NOVO: Mapeado para exibição e busca rápida
 }
 
 interface ListaScreenProps {
@@ -95,6 +100,15 @@ export default function ListaScreen({
         const docEncontrado = querySnapshot.docs[0];
         const ativoEncontrado = { id: docEncontrado.id, ...docEncontrado.data() } as Ativo;
         
+        // 🛑 Trava de Segurança: impede o scanner de abrir um item jogado no lixo por engano
+        if (ativoEncontrado.deletado === true) {
+          Alert.alert(
+            'Ativo Arquivado',
+            `O patrimônio "${patrimonioFormatado}" está na Lixeira do sistema e não pode ser acessado por técnicos comuns.`
+          );
+          return;
+        }
+
         onSelecionarAtivo(ativoEncontrado);
       } else {
         Alert.alert(
@@ -131,12 +145,25 @@ export default function ListaScreen({
     setModalScannerVisivel(true);
   };
 
+  // 🔄 FILTRAGEM INTELIGENTE COM SUPORTE À LIXEIRA E BUSCA POR RESPONSÁVEL
   const ativosFiltrados = ativos.filter((ativo) => {
     const textoBusca = busca.toLowerCase().trim();
+    
+    // 🧑‍💼 NOVO: Agora busca também por quem está com a posse da máquina
     const matchesTexto = 
       ativo.patrimonio.toLowerCase().includes(textoBusca) ||
       ativo.tipo.toLowerCase().includes(textoBusca) ||
-      ativo.setor.toLowerCase().includes(textoBusca);
+      ativo.setor.toLowerCase().includes(textoBusca) ||
+      (ativo.responsavel && ativo.responsavel.toLowerCase().includes(textoBusca));
+
+    // 🗑️ Se o filtro "Lixeira" estiver ativo, mostra APENAS quem foi excluído logicamente
+    if (statusSelecionado === 'Lixeira') {
+      return matchesTexto && ativo.deletado === true;
+    }
+
+    // 🛡️ Para qualquer outro filtro (Todos, Ativo, etc), esconde completamente os deletados
+    if (ativo.deletado === true) return false;
+
     const matchesStatus = statusSelecionado === 'Todos' || ativo.status === statusSelecionado;
     return matchesTexto && matchesStatus;
   });
@@ -146,6 +173,7 @@ export default function ListaScreen({
       case 'Disponível': return { bg: '#e8f5e9', text: '#2e7d32' };
       case 'Ativo': return { bg: '#e3f2fd', text: '#1565c0' };
       case 'Manutenção': return { bg: '#fff3e0', text: '#ef6c00' };
+      case 'Lixeira': return { bg: '#fee2e2', text: '#991b1b' }; 
       default: return { bg: '#f5f5f5', text: '#616161' };
     }
   };
@@ -159,7 +187,7 @@ export default function ListaScreen({
         usuarioLogado={usuarioLogado}
         isAdmin={isAdmin}
         onPressScan={abrirScanner} 
-        onPressAdd={() => onIrParaCadastro()} // 👈 CORRIGIDO: Isolado com arrow function
+        onPressAdd={() => onIrParaCadastro()} 
         onLogout={onLogout}           
       />
 
@@ -172,7 +200,7 @@ export default function ListaScreen({
       <View style={styles.searchFilterContainer}>
         <TextInput
           style={styles.searchInput}
-          placeholder="🔎 Buscar por patrimônio, tipo ou setor..."
+          placeholder="🔎 Buscar por patrimônio, técnico ou funcionário..."
           placeholderTextColor="#94a3b8"
           value={busca}
           onChangeText={setBusca}
@@ -180,7 +208,7 @@ export default function ListaScreen({
         />
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScrollView} contentContainerStyle={styles.filterContentContainer}>
-          {['Todos', 'Disponível', 'Ativo', 'Manutenção'].map((status) => {
+          {['Todos', 'Disponível', 'Ativo', 'Manutenção', 'Lixeira'].map((status) => {
             const isActive = statusSelecionado === status;
             return (
               <TouchableOpacity
@@ -189,7 +217,7 @@ export default function ListaScreen({
                 onPress={() => setStatusSelecionado(status)}
               >
                 <Text style={[styles.filterPillText, isActive && styles.filterPillTextActive, isActive && status !== 'Todos' && { color: getStatusStyle(status).text }]}>
-                  {status}
+                  {status === 'Lixeira' ? '🗑️ Lixeira' : status}
                 </Text>
               </TouchableOpacity>
             );
@@ -217,17 +245,33 @@ export default function ListaScreen({
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}
           renderItem={({ item }) => {
-            const badge = getStatusStyle(item.status);
+            const badge = item.deletado ? getStatusStyle('Lixeira') : getStatusStyle(item.status);
+            const statusTexto = item.deletado ? 'Apagado' : item.status;
+
             return (
               <TouchableOpacity style={styles.card} onPress={() => onSelecionarAtivo(item)}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.patrimonioText}>{item.patrimonio}</Text>
                   <View style={[styles.badge, { backgroundColor: badge.bg }]}>
-                    <Text style={[styles.badgeText, { color: badge.text }]}>{item.status}</Text>
+                    <Text style={[styles.badgeText, { color: badge.text }]}>{statusTexto}</Text>
                   </View>
                 </View>
                 <Text style={styles.tipoText}>{item.tipo}</Text>
-                <Text style={styles.setorText}>📍 {item.setor}</Text>
+                
+                <View style={styles.cardFooterRow}>
+                  <Text style={styles.setorText}>📍 {item.setor}</Text>
+                  
+                  {/* 🧑‍💼 NOVO: Indicador visual rápido do responsável direto no card */}
+                  {item.responsavel ? (
+                    <Text style={styles.responsavelCardText} numberOfLines={1}>
+                      🧑‍💻 {item.responsavel}
+                    </Text>
+                  ) : (
+                    <Text style={[styles.responsavelCardText, { color: '#94a3b8', fontWeight: '400' }]}>
+                      📦 Estoque
+                    </Text>
+                  )}
+                </View>
               </TouchableOpacity>
             );
           }}
@@ -261,7 +305,7 @@ export default function ListaScreen({
       </Modal>
 
       {isAdmin && (
-        <TouchableOpacity style={styles.fab} onPress={() => onIrParaCadastro()}> {/* 👈 CORRIGIDO: Isolado com arrow function */}
+        <TouchableOpacity style={styles.fab} onPress={() => onIrParaCadastro()}>
           <Text style={styles.fabText}>+</Text>
         </TouchableOpacity>
       )}
@@ -290,58 +334,20 @@ const styles = StyleSheet.create({
   patrimonioText: { fontSize: 16, fontWeight: 'bold', color: '#2f6ea8' },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   badgeText: { fontSize: 12, fontWeight: '700' },
-  tipoText: { fontSize: 15, color: '#334155', fontWeight: '500', marginBottom: 4 },
+  tipoText: { fontSize: 15, color: '#334155', fontWeight: '500', marginBottom: 6 },
+  
+  // Estilos da linha de rodapé do card
+  cardFooterRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
   setorText: { fontSize: 13, color: '#64748b' },
+  responsavelCardText: { fontSize: 12, fontWeight: '600', color: '#1e3a8a', maxWidth: '60%' },
+
   fab: { position: 'absolute', right: 20, bottom: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: '#2f6ea8', justifyContent: 'center', alignItems: 'center', elevation: 5 },
   fabText: { color: '#fff', fontSize: 28, fontWeight: '300', marginBottom: 2 },
-  
-  // 📸 ESTILOS EXTRAS DO OVERLAY DA CÂMERA
-  overlayContainer: { 
-    flex: 1, 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    paddingVertical: 50, 
-    backgroundColor: 'rgba(0,0,0,0.5)' 
-  },
-  scanInstructions: { 
-    color: '#fff', 
-    fontSize: 15, 
-    fontWeight: 'bold', 
-    textAlign: 'center', 
-    backgroundColor: 'rgba(0,0,0,0.7)', 
-    paddingHorizontal: 20, 
-    paddingVertical: 10, 
-    borderRadius: 20 
-  },
-  scanTarget: { 
-    width: 320, 
-    height: 140, 
-    borderWidth: 2, 
-    borderColor: '#2f6ea8', 
-    borderRadius: 8, 
-    justifyContent: 'center', 
-    alignItems: 'center',
-    backgroundColor: 'transparent' 
-  },
-  scanLaser: {
-    width: '90%',
-    height: 2,
-    backgroundColor: '#ef4444',
-    shadowColor: '#ef4444',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  closeScanButton: { 
-    backgroundColor: '#ef4444', 
-    paddingVertical: 12, 
-    paddingHorizontal: 30, 
-    borderRadius: 25 
-  },
-  closeScanText: { 
-    color: '#fff', 
-    fontSize: 16, 
-    fontWeight: 'bold' 
-  }
+  overlayContainer: { flex: 1, justifyContent: 'space-between', alignItems: 'center', paddingVertical: 50, backgroundColor: 'rgba(0,0,0,0.5)' },
+  scanInstructions: { color: '#fff', fontSize: 15, fontWeight: 'bold', textAlign: 'center', backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
+  scanTarget: { width: 320, height: 140, borderWidth: 2, borderColor: '#2f6ea8', borderRadius: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' },
+  scanLaser: { width: '90%', height: 2, backgroundColor: '#ef4444', shadowColor: '#ef4444', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 4, elevation: 3 },
+  closeScanButton: { backgroundColor: '#ef4444', paddingVertical: 12, paddingHorizontal: 30, borderRadius: 25 },
+  closeScanText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  infraText: { fontSize: 12, color: '#475569', fontStyle: 'italic' },
 });
