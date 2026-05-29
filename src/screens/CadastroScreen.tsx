@@ -672,211 +672,213 @@ export default function CadastroScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f7fb',
+    backgroundColor: '#edf6ff',
   },
 
   header: {
     flexDirection: 'row',
-    justifyContent:
-      'space-between',
-
+    justifyContent: 'space-between',
     alignItems: 'center',
-
-    paddingHorizontal: 16,
-    paddingVertical: 15,
-
-    backgroundColor: '#fff',
-
-    borderBottomWidth: 1,
-    borderColor: '#e2e8f0',
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    backgroundColor: '#0f2742',
+    borderBottomWidth: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 5,
   },
 
   backButton: {
-    paddingVertical: 6,
+    paddingVertical: 7,
     paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.10)',
   },
 
   backButtonText: {
-    color: '#2f6ea8',
-    fontWeight: '600',
+    color: '#bae6fd',
+    fontWeight: '900',
     fontSize: 15,
   },
 
   title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1e293b',
+    fontSize: 19,
+    fontWeight: '900',
+    color: '#ffffff',
   },
 
   formContainer: {
-    padding: 20,
-    paddingBottom: 40,
+    padding: 16,
+    paddingBottom: 44,
   },
 
   inputGroup: {
-    marginBottom: 20,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 15,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 3,
   },
 
   label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#475569',
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#0f2742',
     marginBottom: 8,
   },
 
   input: {
-    height: 48,
-
-    backgroundColor: '#fff',
-
+    minHeight: 50,
+    backgroundColor: '#f8fbff',
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-
-    borderRadius: 8,
-
-    paddingHorizontal: 16,
-
-    fontSize: 15,
-    color: '#334155',
+    borderColor: '#bfdbfe',
+    borderRadius: 15,
+    paddingHorizontal: 14,
+    color: '#0f172a',
+    fontSize: 14,
   },
 
   textArea: {
-    height: 100,
+    minHeight: 112,
     paddingTop: 12,
     textAlignVertical: 'top',
   },
 
   statusRow: {
     flexDirection: 'row',
-    justifyContent:
-      'space-between',
-
     gap: 8,
   },
 
   statusOption: {
     flex: 1,
-    height: 40,
-
-    backgroundColor: '#fff',
-
+    minHeight: 44,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-
-    borderRadius: 8,
-
-    justifyContent: 'center',
+    borderColor: '#bfdbfe',
+    backgroundColor: '#f8fbff',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
   },
 
   statusOptionSelected: {
-    backgroundColor: '#2f6ea8',
-    borderColor: '#2f6ea8',
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    elevation: 3,
   },
 
   statusOptionText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#64748b',
+    color: '#2563eb',
+    fontWeight: '900',
+    fontSize: 12,
   },
 
   statusOptionTextSelected: {
-    color: '#fff',
+    color: '#ffffff',
   },
 
   saveButton: {
-    height: 52,
-
-    backgroundColor: '#2e7d32',
-
-    borderRadius: 8,
-
-    justifyContent: 'center',
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: '#16a34a',
     alignItems: 'center',
-
-    marginTop: 15,
+    justifyContent: 'center',
+    marginTop: 8,
+    shadowColor: '#16a34a',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28,
+    shadowRadius: 16,
+    elevation: 6,
   },
 
   saveButtonText: {
-    color: '#fff',
+    color: '#ffffff',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '900',
+    letterSpacing: 0.2,
   },
 
   hardwareBox: {
-    backgroundColor: '#f8fafc',
-
+    backgroundColor: '#0f2742',
+    borderRadius: 22,
     padding: 16,
-
-    borderRadius: 10,
-
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-
-    marginBottom: 20,
+    borderColor: '#38bdf8',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 18,
+    elevation: 5,
   },
 
   hardwareTitle: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#1e293b',
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#ffffff',
     marginBottom: 4,
   },
 
   hardwareSubtitle: {
     fontSize: 12,
-    color: '#64748b',
+    color: '#bae6fd',
+    fontWeight: '700',
     marginBottom: 12,
   },
 
   componentRow: {
     flexDirection: 'row',
-
-    justifyContent:
-      'space-between',
-
+    justifyContent: 'space-between',
     alignItems: 'center',
-
-    paddingVertical: 8,
-
-    borderBottomWidth: 1,
-    borderColor: '#f1f5f9',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 14,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
   },
 
   componentName: {
-    fontSize: 14,
-    color: '#334155',
-    fontWeight: '500',
+    color: '#ffffff',
+    fontWeight: '800',
+    flex: 1,
   },
 
   componentBadge: {
+    backgroundColor: '#dcfce7',
+    borderRadius: 999,
     paddingVertical: 6,
-    paddingHorizontal: 16,
-
-    borderRadius: 6,
-
-    backgroundColor: '#e2e8f0',
-
-    minWidth: 80,
-
-    alignItems: 'center',
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#22c55e',
   },
 
   badgeDefeito: {
     backgroundColor: '#fee2e2',
-
-    borderWidth: 1,
     borderColor: '#ef4444',
   },
 
   componentBadgeText: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#475569',
+    color: '#166534',
+    fontWeight: '900',
+    fontSize: 12,
   },
 
   componentTextActive: {
-    color: '#b91c1c',
+    color: '#991b1b',
   },
 });
 
