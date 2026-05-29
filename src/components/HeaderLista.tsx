@@ -33,9 +33,11 @@ export default function HeaderLista({
         </TouchableOpacity>
 
         {/* Botão de Adicionar Ativo */}
-        <TouchableOpacity style={styles.iconButton} onPress={onPressAdd}>
-          <MaterialCommunityIcons name="plus-box" size={26} color="#2f6ea8" />
-        </TouchableOpacity>
+        {isAdmin && (
+          <TouchableOpacity style={styles.iconButton} onPress={onPressAdd}>
+            <MaterialCommunityIcons name="plus-box" size={26} color="#2f6ea8" />
+          </TouchableOpacity>
+        )}
 
         {/* Linha divisória sutil antes do Sair */}
         <View style={styles.divider} />

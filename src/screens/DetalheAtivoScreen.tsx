@@ -1,46 +1,37 @@
 import React, { useEffect, useState } from 'react';
 import {
-  StyleSheet,
+  Alert,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
   Text,
   View,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-  Platform,
-  TextInput,
 } from 'react-native';
+import { deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 
 import { db } from '../config/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
-
-type Componentes = {
-  memoriaRam: string;
-  placaMae: string;
-  armazenamento: string;
-  fonte: string;
-};
-
-interface Ativo {
-  id: string;
-  patrimonio: string;
-  tipo: string;
-  setor: string;
-  status: string;
-  descricao?: string;
-  componentes?: Componentes | null;
-  deletado?: boolean;
-  responsavel?: string;
-  matricula?: string;
-
-  hostname?: string;
-  ip?: string;
-  mac?: string;
-  vlan?: string;
-  portaSwitch?: string;
-}
+import type { Ativo, Componentes, InfraAtivo } from '../types/ativo';
+import { AdminAtivoActionsCard } from '../features/ativos/detalhe/components/AdminAtivoActionsCard';
+import { registrarHistoricoAtivo } from '../features/ativos/historico/registrarHistoricoAtivo';
+import { AtivoResumoCard } from '../features/ativos/detalhe/components/AtivoResumoCard';
+import { DetalheHeader } from '../features/ativos/detalhe/components/DetalheHeader';
+import { HardwareCard } from '../features/ativos/detalhe/components/HardwareCard';
+import { InfraestruturaCard } from '../features/ativos/detalhe/components/InfraestruturaCard';
+import { ObservacoesCard } from '../features/ativos/detalhe/components/ObservacoesCard';
+import { ResponsavelCard } from '../features/ativos/detalhe/components/ResponsavelCard';
+import { SalvarAlteracoesButton } from '../features/ativos/detalhe/components/SalvarAlteracoesButton';
+import { SwitchPortasCard } from '../features/ativos/switches/SwitchPortasCard';
+import { COMPONENTES_PADRAO } from '../features/ativos/detalhe/constants';
+import { styles } from '../features/ativos/detalhe/styles';
+import {
+  ativoEhComputador,
+  ativoEhSwitch,
+  calcularStatusAtivo,
+  descricaoParaNotas,
+  gerarCarimbo,
+  notasParaDescricao,
+} from '../features/ativos/detalhe/utils';
 
 interface Props {
   ativo: Ativo | null;
@@ -49,59 +40,71 @@ interface Props {
   onVoltar: () => void;
 }
 
-const COMPONENTES_PADRAO: Componentes = {
-  memoriaRam: 'OK',
-  placaMae: 'OK',
-  armazenamento: 'OK',
-  fonte: 'OK',
+const INFRA_PADRAO: InfraAtivo = {
+  hostname: '',
+  ip: '',
+  mac: '',
+  vlan: '',
+  portaSwitch: '',
 };
 
-const NOMES_COMPONENTES: Record<keyof Componentes, string> = {
-  memoriaRam: 'Memória RAM',
-  placaMae: 'Placa-Mãe',
-  armazenamento: 'Armazenamento',
-  fonte: 'Fonte',
-};
+function confirmarAcao(
+  titulo: string,
+  mensagem: string,
+  textoConfirmar: string,
+  onConfirmar: () => void,
+) {
+  if (Platform.OS === 'web') {
+    const confirmou = globalThis.confirm(`${titulo}\n\n${mensagem}`);
+
+    if (confirmou) {
+      onConfirmar();
+    }
+
+    return;
+  }
+
+  Alert.alert(titulo, mensagem, [
+    { text: 'Cancelar', style: 'cancel' },
+    {
+      text: textoConfirmar,
+      style: 'destructive',
+      onPress: onConfirmar,
+    },
+  ]);
+}
 
 export default function DetalheAtivoScreen({
   ativo,
+  isAdmin,
   usuarioLogado,
   onVoltar,
 }: Props) {
-
   const [salvando, setSalvando] = useState(false);
-
   const [statusGeral, setStatusGeral] = useState('Disponível');
-
   const [componentes, setComponentes] =
     useState<Componentes>(COMPONENTES_PADRAO);
-
   const [responsavel, setResponsavel] = useState('');
   const [matricula, setMatricula] = useState('');
-
-  const [infra, setInfra] = useState({
-    hostname: '',
-    ip: '',
-    mac: '',
-    vlan: '',
-    portaSwitch: '',
-  });
-
+  const [infra, setInfra] = useState<InfraAtivo>(INFRA_PADRAO);
+  const [totalPortas, setTotalPortas] = useState('');
+  const [portasUsadas, setPortasUsadas] = useState('');
+  const [portasOcupadas, setPortasOcupadas] = useState<number[]>([]);
   const [listaNotas, setListaNotas] = useState<string[]>([]);
   const [novaObservacao, setNovaObservacao] = useState('');
 
   useEffect(() => {
-    if (!ativo) return;
+    if (!ativo) {
+      return;
+    }
 
     setStatusGeral(ativo.status || 'Disponível');
-
     setResponsavel(ativo.responsavel || '');
     setMatricula(ativo.matricula || '');
-
-    setComponentes(
-      ativo.componentes || COMPONENTES_PADRAO
-    );
-
+    setComponentes({
+      ...COMPONENTES_PADRAO,
+      ...(ativo.componentes || {}),
+    });
     setInfra({
       hostname: ativo.hostname || '',
       ip: ativo.ip || '',
@@ -109,17 +112,14 @@ export default function DetalheAtivoScreen({
       vlan: ativo.vlan || '',
       portaSwitch: ativo.portaSwitch || '',
     });
-
-    if (ativo.descricao) {
-      setListaNotas(
-        ativo.descricao
-          .split('\n')
-          .filter((linha) => linha.trim() !== '')
-      );
-    } else {
-      setListaNotas([]);
-    }
-
+    setTotalPortas(ativo.totalPortas ? String(ativo.totalPortas) : '');
+    setPortasUsadas(ativo.portasUsadas ? String(ativo.portasUsadas) : '');
+    setPortasOcupadas(
+      Array.isArray(ativo.portasOcupadas)
+        ? ativo.portasOcupadas
+        : [],
+    );
+    setListaNotas(descricaoParaNotas(ativo.descricao));
   }, [ativo]);
 
   if (!ativo) {
@@ -130,579 +130,241 @@ export default function DetalheAtivoScreen({
     );
   }
 
-  const tipoNormalizado =
-    ativo.tipo?.toLowerCase() || '';
+  const ehComputador = ativoEhComputador(ativo.tipo);
+  const ehSwitch = ativoEhSwitch(ativo.tipo);
 
-  const ehComputador =
-    tipoNormalizado.includes('pc') ||
-    tipoNormalizado.includes('computador') ||
-    tipoNormalizado.includes('notebook');
-
-  const gerarCarimbo = () => {
-    const agora = new Date();
-
-    const operador =
-      usuarioLogado?.split('@')[0] || 'Tecnico';
-
-    return `[${agora.toLocaleDateString()} ${agora.toLocaleTimeString()}] ${operador}:`;
+  const handleChangeInfra = (campo: keyof InfraAtivo, valor: string) => {
+    setInfra((prev) => ({
+      ...prev,
+      [campo]: valor,
+    }));
   };
 
-  const handleAlternarComponente = (
-    chave: keyof Componentes
-  ) => {
-
+  const handleAlternarComponente = (chave: keyof Componentes) => {
     setComponentes((prev) => {
-
-      const novoValor =
-        prev[chave] === 'OK'
-          ? 'Defeito'
-          : 'OK';
-
       const novos = {
         ...prev,
-        [chave]: novoValor,
+        [chave]: prev[chave] === 'OK' ? 'Defeito' : 'OK',
       };
 
-      const temDefeito =
-        Object.values(novos).includes('Defeito');
-
-      // 🔥 inteligência do status
-      if (temDefeito) {
-        setStatusGeral('Manutenção');
-      } else {
-
-        // se não tiver defeito
-        if (responsavel.trim() !== '') {
-          setStatusGeral('Ativo');
-        } else {
-          setStatusGeral('Disponível');
-        }
-      }
+      setStatusGeral(calcularStatusAtivo(novos, responsavel));
 
       return novos;
     });
   };
 
   const adicionarNota = async () => {
-
-    if (novaObservacao.trim() === '') return;
-
-    const novaLinha =
-      `${gerarCarimbo()} ${novaObservacao}`;
+    if (novaObservacao.trim() === '') {
+      return;
+    }
 
     const novaLista = [
       ...listaNotas,
-      novaLinha,
+      `${gerarCarimbo(usuarioLogado)} ${novaObservacao}`,
     ];
 
     setListaNotas(novaLista);
     setNovaObservacao('');
 
     try {
-
-      await updateDoc(
-        doc(db, 'ativos', ativo.id),
-        {
-          descricao: novaLista.join('\n'),
-        }
-      );
-
+      await updateDoc(doc(db, 'ativos', ativo.id), {
+        descricao: notasParaDescricao(novaLista),
+      });
+      await registrarHistoricoAtivo({
+        ativoId: ativo.id,
+        patrimonio: ativo.patrimonio,
+        acao: 'Observação adicionada',
+        usuario: usuarioLogado,
+        detalhes: novaObservacao,
+      });
     } catch (e) {
-      Alert.alert(
-        'Erro',
-        'Falha ao salvar nota.'
-      );
+      Alert.alert('Erro', 'Falha ao salvar nota.');
     }
   };
 
   const salvarAlteracoes = async () => {
-
     try {
-
       setSalvando(true);
 
-      let statusFinal = statusGeral;
+      const statusFinal = calcularStatusAtivo(componentes, responsavel);
+      const manterDataManutencao =
+        ativo.status === 'Manutenção' && ativo.dataManutencao;
 
-      const temDefeito =
-        Object.values(componentes)
-          .includes('Defeito');
+      await updateDoc(doc(db, 'ativos', ativo.id), {
+        status: statusFinal,
+        dataManutencao:
+          statusFinal === 'Manutenção'
+            ? manterDataManutencao || serverTimestamp()
+            : null,
+        componentes: ehComputador ? componentes : null,
+        responsavel: responsavel.trim(),
+        matricula: matricula.trim(),
+        hostname: infra.hostname,
+        ip: infra.ip,
+        mac: infra.mac,
+        vlan: infra.vlan,
+        portaSwitch: infra.portaSwitch,
+        totalPortas:
+          ehSwitch && totalPortas
+            ? Number(totalPortas)
+            : null,
+        portasUsadas:
+          ehSwitch && portasUsadas
+            ? Number(portasUsadas)
+            : null,
+        portasOcupadas:
+          ehSwitch
+            ? portasOcupadas
+            : [],
+        atualizadoPor: usuarioLogado,
+        dataAtualizacao: serverTimestamp(),
+        descricao: notasParaDescricao(listaNotas),
+      });
 
-      if (temDefeito) {
-
-        statusFinal = 'Manutenção';
-
-      } else {
-
-        if (responsavel.trim() !== '') {
-          statusFinal = 'Ativo';
-        } else {
-          statusFinal = 'Disponível';
-        }
-      }
-
-      await updateDoc(
-        doc(db, 'ativos', ativo.id),
-        {
-
-          status: statusFinal,
-
-          componentes:
-            ehComputador
-              ? componentes
-              : null,
-
-          responsavel:
-            responsavel.trim(),
-
-          matricula:
-            matricula.trim(),
-
-          hostname:
-            infra.hostname,
-
-          ip:
-            infra.ip,
-
-          mac:
-            infra.mac,
-
-          vlan:
-            infra.vlan,
-
-          portaSwitch:
-            infra.portaSwitch,
-
-          descricao:
-            listaNotas.join('\n'),
-        }
-      );
-
-      Alert.alert(
-        'Sucesso',
-        'Alterações salvas.'
-      );
+      Alert.alert('Sucesso', 'Alterações salvas.');
+      await registrarHistoricoAtivo({
+        ativoId: ativo.id,
+        patrimonio: ativo.patrimonio,
+        acao: 'Ficha atualizada',
+        usuario: usuarioLogado,
+        detalhes: `Status: ${statusFinal} | Responsável: ${responsavel.trim() || 'Sem responsável'}`,
+      });
 
       onVoltar();
-
     } catch (e) {
-
-      Alert.alert(
-        'Erro',
-        'Falha ao salvar.'
-      );
-
+      Alert.alert('Erro', 'Falha ao salvar.');
     } finally {
-
       setSalvando(false);
-
     }
+  };
+
+  const enviarParaLixeira = () => {
+    confirmarAcao(
+      'Enviar para Lixeira',
+      `Deseja enviar "${ativo.patrimonio}" para a Lixeira?`,
+      'Enviar',
+      async () => {
+        try {
+          await updateDoc(doc(db, 'ativos', ativo.id), {
+            deletado: true,
+            atualizadoPor: usuarioLogado,
+            dataAtualizacao: serverTimestamp(),
+          });
+          await registrarHistoricoAtivo({
+            ativoId: ativo.id,
+            patrimonio: ativo.patrimonio,
+            acao: 'Enviado para Lixeira',
+            usuario: usuarioLogado,
+          });
+          Alert.alert('Pronto', 'Ativo enviado para a Lixeira.');
+          onVoltar();
+        } catch (e) {
+          Alert.alert('Erro', 'Não foi possível enviar para a Lixeira.');
+        }
+      },
+    );
+  };
+
+  const restaurarDaLixeira = async () => {
+    try {
+      await updateDoc(doc(db, 'ativos', ativo.id), {
+        deletado: false,
+        atualizadoPor: usuarioLogado,
+        dataAtualizacao: serverTimestamp(),
+      });
+      await registrarHistoricoAtivo({
+        ativoId: ativo.id,
+        patrimonio: ativo.patrimonio,
+        acao: 'Restaurado da Lixeira',
+        usuario: usuarioLogado,
+      });
+      Alert.alert('Pronto', 'Ativo restaurado.');
+      onVoltar();
+    } catch (e) {
+      Alert.alert('Erro', 'Não foi possível restaurar o ativo.');
+    }
+  };
+
+  const excluirDefinitivo = () => {
+    confirmarAcao(
+      'Excluir definitivamente',
+      `Essa ação remove "${ativo.patrimonio}" do banco. Deseja continuar?`,
+      'Excluir',
+      async () => {
+        try {
+          await registrarHistoricoAtivo({
+            ativoId: ativo.id,
+            patrimonio: ativo.patrimonio,
+            acao: 'Excluído definitivamente',
+            usuario: usuarioLogado,
+          });
+          await deleteDoc(doc(db, 'ativos', ativo.id));
+          Alert.alert('Pronto', 'Ativo excluído definitivamente.');
+          onVoltar();
+        } catch (e) {
+          Alert.alert('Erro', 'Não foi possível excluir o ativo.');
+        }
+      },
+    );
   };
 
   return (
     <SafeAreaView style={styles.container}>
-
       <StatusBar barStyle="dark-content" />
 
-      {/* HEADER */}
-      <View style={styles.header}>
+      <DetalheHeader onVoltar={onVoltar} />
 
-        <TouchableOpacity
-          onPress={onVoltar}
-        >
-          <Text style={styles.back}>
-            ← Voltar
-          </Text>
-        </TouchableOpacity>
+      <ScrollView contentContainerStyle={styles.content}>
+        <AtivoResumoCard ativo={ativo} statusGeral={statusGeral} />
 
-        <Text style={styles.title}>
-          Ficha do Ativo
-        </Text>
+        <ResponsavelCard
+          responsavel={responsavel}
+          matricula={matricula}
+          onChangeResponsavel={setResponsavel}
+          onChangeMatricula={setMatricula}
+        />
 
-        <View style={{ width: 70 }} />
+        <InfraestruturaCard infra={infra} onChangeInfra={handleChangeInfra} />
 
-      </View>
-
-      <ScrollView
-        contentContainerStyle={styles.content}
-      >
-
-        {/* CARD PRINCIPAL */}
-        <View style={styles.card}>
-
-          <Text style={styles.patrimonio}>
-            {ativo.patrimonio}
-          </Text>
-
-          <Text style={styles.tipo}>
-            {ativo.tipo}
-          </Text>
-
-          <Text style={styles.setor}>
-            📍 {ativo.setor}
-          </Text>
-
-          <View
-            style={[
-              styles.badge,
-              statusGeral === 'Manutenção'
-                ? styles.badgeManutencao
-                : statusGeral === 'Ativo'
-                ? styles.badgeAtivo
-                : styles.badgeDisponivel,
-            ]}
-          >
-            <Text style={styles.badgeText}>
-              {statusGeral}
-            </Text>
-          </View>
-
-        </View>
-
-        {/* RESPONSÁVEL */}
-        <View style={styles.card}>
-
-          <Text style={styles.sectionTitle}>
-            🤝 Responsável
-          </Text>
-
-          <TextInput
-            style={styles.input}
-            placeholder="Nome"
-            value={responsavel}
-            onChangeText={setResponsavel}
+        {ehSwitch && (
+          <SwitchPortasCard
+            totalPortas={totalPortas}
+            portasUsadas={portasUsadas}
+            portasOcupadas={portasOcupadas}
+            onChangeTotalPortas={setTotalPortas}
+            onChangePortasUsadas={setPortasUsadas}
+            onChangePortasOcupadas={setPortasOcupadas}
           />
+        )}
 
-          <TextInput
-            style={styles.input}
-            placeholder="Matrícula"
-            value={matricula}
-            onChangeText={setMatricula}
+        {ehComputador && (
+          <HardwareCard
+            componentes={componentes}
+            onAlternarComponente={handleAlternarComponente}
           />
+        )}
 
-        </View>
+        <ObservacoesCard
+          listaNotas={listaNotas}
+          novaObservacao={novaObservacao}
+          onChangeNovaObservacao={setNovaObservacao}
+          onAdicionarNota={adicionarNota}
+        />
 
-        {/* REDE */}
-        <View style={styles.card}>
-
-          <Text style={styles.sectionTitle}>
-            🌐 Infraestrutura
-          </Text>
-
-          <TextInput
-            style={styles.input}
-            placeholder="Hostname"
-            value={infra.hostname}
-            onChangeText={(t) =>
-              setInfra({
-                ...infra,
-                hostname: t,
-              })
-            }
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="IP"
-            value={infra.ip}
-            onChangeText={(t) =>
-              setInfra({
-                ...infra,
-                ip: t,
-              })
-            }
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="MAC"
-            value={infra.mac}
-            onChangeText={(t) =>
-              setInfra({
-                ...infra,
-                mac: t,
-              })
-            }
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="VLAN"
-            value={infra.vlan}
-            onChangeText={(t) =>
-              setInfra({
-                ...infra,
-                vlan: t,
-              })
-            }
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="Porta Switch"
-            value={infra.portaSwitch}
-            onChangeText={(t) =>
-              setInfra({
-                ...infra,
-                portaSwitch: t,
-              })
-            }
-          />
-
-        </View>
-
-{/* HARDWARE */}
-{ehComputador && (
-  <View style={styles.card}>
-
-    <Text style={styles.sectionTitle}>
-      🩺 Hardware
-    </Text>
-
-    {(Object.keys(componentes) as Array<keyof Componentes>).map((chave) => {
-      const nomeComponente = NOMES_COMPONENTES[chave];
-      const valorComponente = componentes[chave];
-      const estiloValor = valorComponente === 'OK' ? styles.ok : styles.defeito;
-
-      return (
-        <TouchableOpacity
-          key={chave}
-          style={styles.componentRow}
-          onPress={() => handleAlternarComponente(chave)}
-        >
-          <Text style={styles.componentName}>
-            {nomeComponente}
-          </Text>
-          <Text style={estiloValor}>
-            {valorComponente}
-          </Text>
-        </TouchableOpacity>
-      );
-    })}
-
-  </View>
-)}
-
-        {/* NOTAS */}
-        <View style={styles.card}>
-
-          <Text style={styles.sectionTitle}>
-            📋 Observações
-          </Text>
-
-          {listaNotas.map((nota, index) => (
-            <Text
-              key={index}
-              style={styles.nota}
-            >
-              {nota}
-            </Text>
-          ))}
-
-          <TextInput
-            style={styles.textArea}
-            placeholder="Nova observação..."
-            multiline
-            value={novaObservacao}
-            onChangeText={setNovaObservacao}
-          />
-
-          <TouchableOpacity
-            style={styles.btnNota}
-            onPress={adicionarNota}
-          >
-            <Text style={styles.btnText}>
-              Adicionar Nota
-            </Text>
-          </TouchableOpacity>
-
-        </View>
-
-        {/* BOTÃO SALVAR */}
-        <TouchableOpacity
-          style={styles.btnSalvar}
+        <SalvarAlteracoesButton
+          salvando={salvando}
           onPress={salvarAlteracoes}
-        >
+        />
 
-          {salvando ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.btnSalvarText}>
-              Salvar Alterações
-            </Text>
-          )}
-
-        </TouchableOpacity>
-
+        {isAdmin && (
+          <AdminAtivoActionsCard
+            deletado={ativo.deletado}
+            onEnviarParaLixeira={enviarParaLixeira}
+            onRestaurar={restaurarDaLixeira}
+            onExcluirDefinitivo={excluirDefinitivo}
+          />
+        )}
       </ScrollView>
-
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f7fb',
-  },
-
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-
-  back: {
-    color: '#2f6ea8',
-    fontWeight: 'bold',
-  },
-
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-
-  content: {
-    padding: 16,
-    paddingBottom: 50,
-  },
-
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-
-  patrimonio: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#2f6ea8',
-  },
-
-  tipo: {
-    fontSize: 16,
-    marginTop: 4,
-  },
-
-  setor: {
-    marginTop: 6,
-    color: '#64748b',
-  },
-
-  badge: {
-    marginTop: 12,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-
-  badgeDisponivel: {
-    backgroundColor: '#dcfce7',
-  },
-
-  badgeAtivo: {
-    backgroundColor: '#dbeafe',
-  },
-
-  badgeManutencao: {
-    backgroundColor: '#fee2e2',
-  },
-
-  badgeText: {
-    fontWeight: 'bold',
-  },
-
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
-
-  input: {
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 10,
-  },
-
-  componentRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderColor: '#f1f5f9',
-  },
-
-  componentName: {
-    fontSize: 14,
-  },
-
-  ok: {
-    color: '#16a34a',
-    fontWeight: 'bold',
-  },
-
-  defeito: {
-    color: '#dc2626',
-    fontWeight: 'bold',
-  },
-
-  nota: {
-    fontSize: 13,
-    marginBottom: 8,
-    color: '#475569',
-  },
-
-  textArea: {
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 8,
-    padding: 12,
-    minHeight: 90,
-    marginTop: 10,
-    textAlignVertical: 'top',
-  },
-
-  btnNota: {
-    backgroundColor: '#2f6ea8',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 10,
-    alignItems: 'center',
-  },
-
-  btnText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-
-  btnSalvar: {
-    backgroundColor: '#16a34a',
-    height: 50,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  btnSalvarText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-
-});

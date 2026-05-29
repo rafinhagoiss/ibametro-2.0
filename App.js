@@ -9,6 +9,7 @@ import LoginScreen from './src/screens/LoginScreen';
 import ListaScreen from './src/screens/ListaScreen';
 import CadastroScreen from './src/screens/CadastroScreen';
 import DetalheAtivoScreen from './src/screens/DetalheAtivoScreen';
+import RelatoriosScreen from './src/screens/RelatoriosScreen';
 
 export default function App() {
   const [telaAtual, setTelaAtual] = useState('login');
@@ -16,6 +17,14 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [carregando, setCarregando] = useState(true); 
   const [ativoSelecionado, setAtivoSelecionado] = useState(null);
+  const [patrimonioCadastro, setPatrimonioCadastro] = useState('');
+  const [tipoCadastro, setTipoCadastro] = useState('');
+
+  const abrirCadastro = (patrimonioPrePreenchido = '', tipoPreSelecionado = '') => {
+    setPatrimonioCadastro(patrimonioPrePreenchido || '');
+    setTipoCadastro(tipoPreSelecionado || '');
+    setTelaAtual('cadastro');
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -62,12 +71,29 @@ export default function App() {
   // 🚪 RENDERIZAÇÃO DAS TELAS (Só executa após o carregamento finalizar)
   if (telaAtual === 'login') return <LoginScreen />; 
   
-  if (telaAtual === 'cadastro') return <CadastroScreen onVoltar={() => setTelaAtual('lista')} />;
+  if (telaAtual === 'cadastro') {
+    return (
+      <CadastroScreen
+        patrimonioPrePreenchido={patrimonioCadastro}
+        tipoPreSelecionado={tipoCadastro}
+        usuarioLogado={usuario}
+        onVoltar={() => setTelaAtual('lista')}
+      />
+    );
+  }
   
   // 📊 DASHBOARD GERAL DE CHAMADOS
   if (telaAtual === 'painelChamados') {
     return (
       <PainelChamadosScreen 
+        onVoltar={() => setTelaAtual('lista')} 
+      />
+    );
+  }
+
+  if (telaAtual === 'relatorios') {
+    return (
+      <RelatoriosScreen 
         onVoltar={() => setTelaAtual('lista')} 
       />
     );
@@ -93,7 +119,8 @@ export default function App() {
           setAtivoSelecionado(ativo);
           setTelaAtual('detalhes');
         }}
-        onIrParaCadastro={() => setTelaAtual('cadastro')}
+        onIrParaCadastro={abrirCadastro}
+        onIrParaRelatorios={() => setTelaAtual('relatorios')}
         onIrParaPainelChamados={() => setTelaAtual('painelChamados')} 
         onLogout={() => setTelaAtual('login')}
       />

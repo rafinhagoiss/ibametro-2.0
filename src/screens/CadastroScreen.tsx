@@ -14,12 +14,25 @@ import {
   View,
 } from 'react-native';
 
-import { addDoc, collection } from 'firebase/firestore';
+import {
+  addDoc,
+  collection,
+  getDocs,
+  query,
+  serverTimestamp,
+  where,
+} from 'firebase/firestore';
 
 import { db } from '../config/firebase';
+import { registrarHistoricoAtivo } from '../features/ativos/historico/registrarHistoricoAtivo';
+import { QrCodePatrimonioCard } from '../features/ativos/qrcode/components/QrCodePatrimonioCard';
+import { ativoEhSwitch } from '../features/ativos/detalhe/utils';
+import { SwitchPortasCard } from '../features/ativos/switches/SwitchPortasCard';
 
 interface CadastroScreenProps {
   patrimonioPrePreenchido?: string;
+  tipoPreSelecionado?: string;
+  usuarioLogado: string;
   onVoltar: () => void;
 }
 
@@ -31,13 +44,15 @@ type ComponenteKey =
 
 export default function CadastroScreen({
   patrimonioPrePreenchido,
+  tipoPreSelecionado,
+  usuarioLogado,
   onVoltar,
 }: CadastroScreenProps) {
   const [patrimonio, setPatrimonio] = useState(
     patrimonioPrePreenchido || '',
   );
 
-  const [tipo, setTipo] = useState('');
+  const [tipo, setTipo] = useState(tipoPreSelecionado || '');
   const [setor, setSetor] = useState('');
   const [status, setStatus] =
     useState('Disponível');
@@ -60,6 +75,9 @@ export default function CadastroScreen({
   const [ip, setIp] = useState('');
 
   const [mac, setMac] = useState('');
+  const [totalPortas, setTotalPortas] = useState('');
+  const [portasUsadas, setPortasUsadas] = useState('');
+  const [portasOcupadas, setPortasOcupadas] = useState<number[]>([]);
 
   const [componentes, setComponentes] =
     useState({
@@ -77,6 +95,7 @@ export default function CadastroScreen({
       'notebook',
     ) ||
     tipo.toLowerCase().includes('pc');
+  const ehSwitch = ativoEhSwitch(tipo);
 
   const alternarComponente = (
     chave: ComponenteKey,
@@ -103,15 +122,31 @@ export default function CadastroScreen({
     setCarregando(true);
 
     try {
+      const patrimonioFormatado = patrimonio.trim().toUpperCase();
+      const consultaDuplicado = query(
+        collection(db, 'ativos'),
+        where('patrimonio', '==', patrimonioFormatado),
+      );
+      const ativosDuplicados = await getDocs(consultaDuplicado);
+
+      if (!ativosDuplicados.empty) {
+        alert('Este patrimônio já está cadastrado no inventário.');
+        return;
+      }
+
       const dadosAtivo: any = {
         patrimonio:
-          patrimonio.trim().toUpperCase(),
+          patrimonioFormatado,
 
         tipo: tipo.trim(),
 
         setor: setor.trim(),
 
         status,
+        dataManutencao:
+          status === 'Manutenção'
+            ? serverTimestamp()
+            : null,
 
         descricao:
           descricao.trim(),
@@ -131,8 +166,32 @@ export default function CadastroScreen({
           .trim()
           .toUpperCase(),
 
+        totalPortas:
+          ehSwitch && totalPortas
+            ? Number(totalPortas)
+            : null,
+
+        portasUsadas:
+          ehSwitch && portasUsadas
+            ? Number(portasUsadas)
+            : null,
+
+        portasOcupadas:
+          ehSwitch
+            ? portasOcupadas
+            : [],
+
         dataCadastro:
           new Date().getTime(),
+
+        dataAtualizacao:
+          serverTimestamp(),
+
+        criadoPor:
+          usuarioLogado,
+
+        atualizadoPor:
+          usuarioLogado,
 
         deletado: false,
       };
@@ -142,10 +201,18 @@ export default function CadastroScreen({
           componentes;
       }
 
-      await addDoc(
+      const docRef = await addDoc(
         collection(db, 'ativos'),
         dadosAtivo,
       );
+
+      await registrarHistoricoAtivo({
+        ativoId: docRef.id,
+        patrimonio: patrimonioFormatado,
+        acao: 'Cadastro criado',
+        usuario: usuarioLogado,
+        detalhes: `Tipo: ${tipo.trim()} | Setor: ${setor.trim()}`,
+      });
 
       onVoltar();
     } catch (error: any) {
@@ -213,6 +280,12 @@ export default function CadastroScreen({
             />
           </View>
 
+          <QrCodePatrimonioCard
+            patrimonio={patrimonio}
+            tipo={tipo}
+            setor={setor}
+          />
+
           <View style={styles.inputGroup}>
             <Text style={styles.label}>
               Responsável pelo Ativo
@@ -258,6 +331,17 @@ export default function CadastroScreen({
               editable={!carregando}
             />
           </View>
+
+          {ehSwitch && (
+            <SwitchPortasCard
+              totalPortas={totalPortas}
+              portasUsadas={portasUsadas}
+              portasOcupadas={portasOcupadas}
+              onChangeTotalPortas={setTotalPortas}
+              onChangePortasUsadas={setPortasUsadas}
+              onChangePortasOcupadas={setPortasOcupadas}
+            />
+          )}
 
           {ehComputador && (
             <View style={styles.hardwareBox}>
