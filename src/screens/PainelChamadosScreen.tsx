@@ -11,6 +11,8 @@ import {
 import { collection, doc, onSnapshot, updateDoc } from 'firebase/firestore';
 
 import { db } from '../config/firebase';
+import { registrarHistoricoAtivo } from '../features/ativos/historico/registrarHistoricoAtivo';
+import { AbrirChamadoModal } from '../features/ativos/chamados/AbrirChamadoModal';
 import type { Ativo, Componentes } from '../types/ativo';
 
 interface Chamado {
@@ -24,6 +26,7 @@ interface Chamado {
 
 interface PainelChamadosScreenProps {
   onVoltar: () => void;
+  usuarioLogado: string;
 }
 
 const SETE_DIAS_EM_MS = 7 * 24 * 60 * 60 * 1000;
@@ -37,7 +40,8 @@ function ativoEhComputador(tipo?: string) {
   return (
     tipoNormalizado.includes('pc') ||
     tipoNormalizado.includes('computador') ||
-    tipoNormalizado.includes('notebook')
+    tipoNormalizado.includes('notebook') ||
+    tipoNormalizado.includes('arquimedes')
   );
 }
 
@@ -59,7 +63,9 @@ function encontrarSetorCritico(ativos: Ativo[]) {
 
   ativos.forEach((ativo) => {
     const temProblema =
-      ativo.status === 'Manutenção' || componenteComDefeito(ativo.componentes);
+      ativo.status === 'Manutenção' ||
+      componenteComDefeito(ativo.componentes) ||
+      ativo.tela === 'Danificada';
 
     if (!temProblema || ativo.deletado) {
       return;
@@ -85,10 +91,12 @@ function encontrarSetorCritico(ativos: Ativo[]) {
 
 export default function PainelChamadosScreen({
   onVoltar,
+  usuarioLogado,
 }: PainelChamadosScreenProps) {
   const [chamados, setChamados] = useState<Chamado[]>([]);
   const [ativosMap, setAtivosMap] = useState<Record<string, Ativo>>({});
   const [filtroStatus, setFiltroStatus] = useState<FiltroChamado>('Todos');
+  const [modalNovoChamadoVisivel, setModalNovoChamadoVisivel] = useState(false);
 
   useEffect(() => {
     const unsubAtivos = onSnapshot(collection(db, 'ativos'), (snapshot) => {
@@ -155,6 +163,16 @@ export default function PainelChamadosScreen({
   ) => {
     try {
       await updateDoc(doc(db, 'chamados', idChamado), { status: novoStatus });
+      const ativo = ativosMap[idAtivo];
+
+      if (ativo) {
+        await registrarHistoricoAtivo({
+          ativoId: idAtivo,
+          patrimonio: ativo.patrimonio,
+          acao: `Chamado atualizado: ${novoStatus}`,
+          usuario: usuarioLogado,
+        });
+      }
 
       if (novoStatus === 'Resolvido') {
         await updateDoc(doc(db, 'ativos', idAtivo), {
@@ -206,6 +224,10 @@ export default function PainelChamadosScreen({
           <Text style={styles.metricLabel}>Concluídos</Text>
         </View>
       </View>
+
+      <TouchableOpacity style={styles.openTicketButton} onPress={() => setModalNovoChamadoVisivel(true)}>
+        <Text style={styles.openTicketButtonText}>+ Abrir chamado</Text>
+      </TouchableOpacity>
 
       <View style={styles.inventoryMetricsContainer}>
         <View style={[styles.inventoryMetricCard, { borderLeftColor: '#991b1b' }]}>
@@ -344,6 +366,13 @@ export default function PainelChamadosScreen({
           })
         )}
       </ScrollView>
+
+      <AbrirChamadoModal
+        ativos={ativos}
+        usuarioLogado={usuarioLogado}
+        visivel={modalNovoChamadoVisivel}
+        onFechar={() => setModalNovoChamadoVisivel(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -396,6 +425,16 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     marginTop: 4,
   },
+  openTicketButton: {
+    minHeight: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 16,
+    marginTop: 4,
+    borderRadius: 12,
+    backgroundColor: '#2563eb',
+  },
+  openTicketButtonText: { color: '#fff', fontSize: 15, fontWeight: '900' },
   inventoryMetricsContainer: {
     backgroundColor: '#edf6ff',
     paddingHorizontal: 16,

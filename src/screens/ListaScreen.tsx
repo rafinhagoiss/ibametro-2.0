@@ -9,12 +9,13 @@ import type { Ativo } from '../types/ativo';
 import { AtivosList } from '../features/ativos/lista/components/AtivosList';
 import { BuscaFiltrosAtivos } from '../features/ativos/lista/components/BuscaFiltrosAtivos';
 import { DashboardChamadosButton } from '../features/ativos/lista/components/DashboardChamadosButton';
-import { ExportarInventarioButton } from '../features/ativos/lista/components/ExportarInventarioButton';
 import { FabNovoAtivo } from '../features/ativos/lista/components/FabNovoAtivo';
-import { RelatoriosButton } from '../features/ativos/lista/components/RelatoriosButton';
+import { AcoesAdministrativas } from '../features/ativos/lista/components/AcoesAdministrativas';
+import { ResumoInventario } from '../features/ativos/lista/components/ResumoInventario';
 import { ScannerModal } from '../features/ativos/lista/components/ScannerModal';
 import { TipoAtivoModal } from '../features/ativos/lista/components/TipoAtivoModal';
 import { exportarInventarioCsv } from '../features/ativos/exportacao/exportarInventarioCsv';
+import { importarPlanilhaCsv } from '../features/ativos/importacao/importarPlanilhaCsv';
 import type { StatusFiltroAtivo } from '../features/ativos/lista/constants';
 import { useAtivos } from '../features/ativos/lista/hooks/useAtivos';
 import { styles } from '../features/ativos/lista/styles';
@@ -33,6 +34,7 @@ interface ListaScreenProps {
   ) => void;
   onIrParaRelatorios: () => void;
   onIrParaPainelChamados: () => void;
+  onIrParaUsuarios: () => void;
   onLogout: () => void;
 }
 
@@ -43,6 +45,7 @@ export default function ListaScreen({
   onIrParaCadastro,
   onIrParaRelatorios,
   onIrParaPainelChamados,
+  onIrParaUsuarios,
   onLogout,
 }: ListaScreenProps) {
   const { ativos, carregando, setCarregando } = useAtivos();
@@ -54,8 +57,23 @@ export default function ListaScreen({
   const [scaneado, setScaneado] = useState(false);
   const [exportando, setExportando] = useState(false);
   const [modalTipoVisivel, setModalTipoVisivel] = useState(false);
+  const [importando, setImportando] = useState(false);
+  const [setorSelecionado, setSetorSelecionado] = useState('Todos os setores');
+  const [tipoSelecionado, setTipoSelecionado] = useState('Todos os tipos');
 
-  const ativosFiltrados = filtrarAtivos(ativos, busca, statusSelecionado);
+  const setores = Array.from(
+    new Set(ativos.filter((ativo) => !ativo.deletado).map((ativo) => ativo.setor).filter(Boolean)),
+  ).sort();
+  const tipos = Array.from(
+    new Set(ativos.filter((ativo) => !ativo.deletado).map((ativo) => ativo.tipo).filter(Boolean)),
+  ).sort();
+  const ativosFiltrados = filtrarAtivos(
+    ativos,
+    busca,
+    statusSelecionado,
+    setorSelecionado,
+    tipoSelecionado,
+  );
 
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
     setScaneado(true);
@@ -82,7 +100,7 @@ export default function ListaScreen({
         if (ativoEncontrado.deletado === true) {
           Alert.alert(
             'Ativo Arquivado',
-            `O patrimônio "${patrimonioFormatado}" está na Lixeira do sistema e não pode ser acessado por técnicos comuns.`,
+            `O patrimônio "${patrimonioFormatado}" está na Lixeira do sistema e não pode ser acessado por usuários comuns.`,
           );
           return;
         }
@@ -158,6 +176,25 @@ export default function ListaScreen({
     onIrParaCadastro(undefined, tipo);
   };
 
+  const handleImportarInventario = async () => {
+    try {
+      setImportando(true);
+      const resultado = await importarPlanilhaCsv(usuarioLogado);
+
+      Alert.alert(
+        'Importação concluída',
+        `Arquivo: ${resultado.arquivo}\n\n${resultado.importados} equipamentos cadastrados.\n${resultado.ignorados} patrimônios repetidos ignorados.\n${resultado.invalidos} linhas incompletas ignoradas.`,
+      );
+    } catch (error: any) {
+      Alert.alert(
+        'Erro ao importar',
+        error?.message || 'Não foi possível importar a planilha.',
+      );
+    } finally {
+      setImportando(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
@@ -173,20 +210,28 @@ export default function ListaScreen({
       <DashboardChamadosButton onPress={onIrParaPainelChamados} />
 
       {isAdmin && (
-        <>
-          <ExportarInventarioButton
-            exportando={exportando}
-            onPress={handleExportarInventario}
-          />
-
-          <RelatoriosButton onPress={onIrParaRelatorios} />
-        </>
+        <AcoesAdministrativas
+          exportando={exportando}
+          importando={importando}
+          onExportar={handleExportarInventario}
+          onImportar={handleImportarInventario}
+          onRelatorios={onIrParaRelatorios}
+          onUsuarios={onIrParaUsuarios}
+        />
       )}
+
+      <ResumoInventario ativos={ativos} totalFiltrado={ativosFiltrados.length} />
 
       <BuscaFiltrosAtivos
         busca={busca}
+        setores={setores}
+        tipos={tipos}
+        setorSelecionado={setorSelecionado}
+        tipoSelecionado={tipoSelecionado}
         statusSelecionado={statusSelecionado}
         onChangeBusca={setBusca}
+        onChangeSetor={setSetorSelecionado}
+        onChangeTipo={setTipoSelecionado}
         onChangeStatus={setStatusSelecionado}
       />
 

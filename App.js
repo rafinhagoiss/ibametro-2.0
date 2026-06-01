@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { auth, db } from './src/config/firebase'; 
-import { onAuthStateChanged } from 'firebase/auth'; 
+import { onAuthStateChanged, signOut } from 'firebase/auth'; 
 import { doc, getDoc } from 'firebase/firestore';
 
 import PainelChamadosScreen from './src/screens/PainelChamadosScreen';
@@ -10,6 +10,7 @@ import ListaScreen from './src/screens/ListaScreen';
 import CadastroScreen from './src/screens/CadastroScreen';
 import DetalheAtivoScreen from './src/screens/DetalheAtivoScreen';
 import RelatoriosScreen from './src/screens/RelatoriosScreen';
+import GerenciarUsuariosScreen from './src/screens/GerenciarUsuariosScreen';
 
 export default function App() {
   const [telaAtual, setTelaAtual] = useState('login');
@@ -26,6 +27,11 @@ export default function App() {
     setTelaAtual('cadastro');
   };
 
+  const sair = async () => {
+    await signOut(auth);
+    setTelaAtual('login');
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -36,15 +42,25 @@ export default function App() {
           const userDocRef = doc(db, 'usuarios', emailCompleto.toLowerCase());
           const userDocSnap = await getDoc(userDocRef);
 
-          if (userDocSnap.exists()) {
+          if (userDocSnap.exists() && userDocSnap.data().ativo !== false) {
             const dadosUsuario = userDocSnap.data();
             setIsAdmin(dadosUsuario.role === 'admin');
           } else {
-            setIsAdmin(false); 
+            await signOut(auth);
+            setUsuario('');
+            setIsAdmin(false);
+            setTelaAtual('login');
+            setCarregando(false);
+            return;
           }
         } catch (error) {
           console.log("Erro ao buscar acesso:", error);
+          await signOut(auth).catch(() => undefined);
+          setUsuario('');
           setIsAdmin(false);
+          setTelaAtual('login');
+          setCarregando(false);
+          return;
         }
         setUsuario(nomeUsuario);
         setTelaAtual('lista');
@@ -86,6 +102,7 @@ export default function App() {
   if (telaAtual === 'painelChamados') {
     return (
       <PainelChamadosScreen 
+        usuarioLogado={usuario}
         onVoltar={() => setTelaAtual('lista')} 
       />
     );
@@ -97,6 +114,10 @@ export default function App() {
         onVoltar={() => setTelaAtual('lista')} 
       />
     );
+  }
+
+  if (telaAtual === 'usuarios') {
+    return <GerenciarUsuariosScreen onVoltar={() => setTelaAtual('lista')} />;
   }
 
   if (telaAtual === 'detalhes') {
@@ -122,7 +143,8 @@ export default function App() {
         onIrParaCadastro={abrirCadastro}
         onIrParaRelatorios={() => setTelaAtual('relatorios')}
         onIrParaPainelChamados={() => setTelaAtual('painelChamados')} 
-        onLogout={() => setTelaAtual('login')}
+        onIrParaUsuarios={() => setTelaAtual('usuarios')}
+        onLogout={sair}
       />
     );
   }

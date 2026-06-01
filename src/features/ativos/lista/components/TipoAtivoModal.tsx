@@ -20,7 +20,7 @@ const OPCOES_TIPO_ATIVO = [
   },
   {
     titulo: 'Arquimedes',
-    descricao: 'Categoria separada para controle próprio.',
+    descricao: 'Computador all-in-one com hardware e diagnóstico da tela.',
     valor: 'Arquimedes',
   },
 ];

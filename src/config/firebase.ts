@@ -4,7 +4,7 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage"; // 🔥 Adicionado
 
 // Suas credenciais oficiais do Firebase
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyCIuapKGogC5NkkME4REZkGLjYPO9i6oSw",
   authDomain: "inventario-ti-app.firebaseapp.com",
   projectId: "inventario-ti-app",

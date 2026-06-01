@@ -11,9 +11,12 @@ import {
 import { deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 
 import { db } from '../config/firebase';
-import type { Ativo, Componentes, InfraAtivo } from '../types/ativo';
+import type { Ativo, Componentes, InfraAtivo, StatusTela } from '../types/ativo';
+import { TelaArquimedesCard } from '../features/ativos/arquimedes/TelaArquimedesCard';
+import { AbrirChamadoCard } from '../features/ativos/chamados/AbrirChamadoCard';
 import { AdminAtivoActionsCard } from '../features/ativos/detalhe/components/AdminAtivoActionsCard';
 import { registrarHistoricoAtivo } from '../features/ativos/historico/registrarHistoricoAtivo';
+import { HistoricoAtivoCard } from '../features/ativos/historico/HistoricoAtivoCard';
 import { AtivoResumoCard } from '../features/ativos/detalhe/components/AtivoResumoCard';
 import { DetalheHeader } from '../features/ativos/detalhe/components/DetalheHeader';
 import { HardwareCard } from '../features/ativos/detalhe/components/HardwareCard';
@@ -26,6 +29,7 @@ import { COMPONENTES_PADRAO } from '../features/ativos/detalhe/constants';
 import { styles } from '../features/ativos/detalhe/styles';
 import {
   ativoEhComputador,
+  ativoEhArquimedes,
   ativoEhSwitch,
   calcularStatusAtivo,
   descricaoParaNotas,
@@ -85,6 +89,7 @@ export default function DetalheAtivoScreen({
   const [componentes, setComponentes] =
     useState<Componentes>(COMPONENTES_PADRAO);
   const [responsavel, setResponsavel] = useState('');
+  const [tela, setTela] = useState<StatusTela>('OK');
   const [matricula, setMatricula] = useState('');
   const [infra, setInfra] = useState<InfraAtivo>(INFRA_PADRAO);
   const [totalPortas, setTotalPortas] = useState('');
@@ -100,6 +105,7 @@ export default function DetalheAtivoScreen({
 
     setStatusGeral(ativo.status || 'Disponível');
     setResponsavel(ativo.responsavel || '');
+    setTela(ativo.tela || 'OK');
     setMatricula(ativo.matricula || '');
     setComponentes({
       ...COMPONENTES_PADRAO,
@@ -131,6 +137,7 @@ export default function DetalheAtivoScreen({
   }
 
   const ehComputador = ativoEhComputador(ativo.tipo);
+  const ehArquimedes = ativoEhArquimedes(ativo.tipo);
   const ehSwitch = ativoEhSwitch(ativo.tipo);
 
   const handleChangeInfra = (campo: keyof InfraAtivo, valor: string) => {
@@ -147,10 +154,15 @@ export default function DetalheAtivoScreen({
         [chave]: prev[chave] === 'OK' ? 'Defeito' : 'OK',
       };
 
-      setStatusGeral(calcularStatusAtivo(novos, responsavel));
+      setStatusGeral(calcularStatusAtivo(novos, responsavel, tela === 'Danificada'));
 
       return novos;
     });
+  };
+
+  const handleChangeTela = (statusTela: StatusTela) => {
+    setTela(statusTela);
+    setStatusGeral(calcularStatusAtivo(componentes, responsavel, statusTela === 'Danificada'));
   };
 
   const adicionarNota = async () => {
@@ -186,7 +198,11 @@ export default function DetalheAtivoScreen({
     try {
       setSalvando(true);
 
-      const statusFinal = calcularStatusAtivo(componentes, responsavel);
+      const statusFinal = calcularStatusAtivo(
+        componentes,
+        responsavel,
+        ehArquimedes && tela === 'Danificada',
+      );
       const manterDataManutencao =
         ativo.status === 'Manutenção' && ativo.dataManutencao;
 
@@ -197,6 +213,7 @@ export default function DetalheAtivoScreen({
             ? manterDataManutencao || serverTimestamp()
             : null,
         componentes: ehComputador ? componentes : null,
+        tela: ehArquimedes ? tela : null,
         responsavel: responsavel.trim(),
         matricula: matricula.trim(),
         hostname: infra.hostname,
@@ -344,12 +361,22 @@ export default function DetalheAtivoScreen({
           />
         )}
 
+        {ehArquimedes && <TelaArquimedesCard tela={tela} onChangeTela={handleChangeTela} />}
+
+        <AbrirChamadoCard
+          ativo={ativo}
+          usuarioLogado={usuarioLogado}
+          onChamadoAberto={() => setStatusGeral('Manutenção')}
+        />
+
         <ObservacoesCard
           listaNotas={listaNotas}
           novaObservacao={novaObservacao}
           onChangeNovaObservacao={setNovaObservacao}
           onAdicionarNota={adicionarNota}
         />
+
+        <HistoricoAtivoCard ativoId={ativo.id} />
 
         <SalvarAlteracoesButton
           salvando={salvando}

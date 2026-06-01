@@ -1,0 +1,51 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function hasActiveProfile() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.token.email))
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.ativo != false;
+    }
+
+    function isAdmin() {
+      return hasActiveProfile()
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.role == 'admin';
+    }
+
+    match /ativos/{ativoId} {
+      allow read: if hasActiveProfile();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || hasActiveProfile() && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'dataManutencao',
+          'atualizadoPor',
+          'dataAtualizacao',
+          'descricao'
+        ]);
+    }
+
+    match /chamados/{chamadoId} {
+      allow read, create, update: if hasActiveProfile();
+      allow delete: if isAdmin();
+    }
+
+    match /historicoAtivos/{eventoId} {
+      allow read, create: if hasActiveProfile();
+      allow update, delete: if false;
+    }
+
+    match /usuarios/{email} {
+      allow get: if hasActiveProfile() && (email == request.auth.token.email || isAdmin());
+      allow list, create, update: if isAdmin();
+      allow delete: if isAdmin()
+        && email != request.auth.token.email
+        && resource.data.role != 'admin';
+    }
+  }
+}

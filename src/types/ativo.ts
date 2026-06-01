@@ -1,4 +1,5 @@
 export type ComponenteStatus = 'OK' | 'Defeito';
+export type StatusTela = 'OK' | 'Danificada';
 
 export type Componentes = {
   memoriaRam: ComponenteStatus;
@@ -23,6 +24,7 @@ export interface Ativo {
   status: string;
   descricao?: string;
   componentes?: Componentes | null;
+  tela?: StatusTela | null;
   deletado?: boolean;
   responsavel?: string;
   matricula?: string;

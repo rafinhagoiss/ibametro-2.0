@@ -12,71 +12,95 @@ import {
 } from 'react-native';
 
 import {
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
+  signOut,
 } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 
-import { auth } from '../config/firebase';
+import { auth, db } from '../config/firebase';
+import {
+  MENSAGEM_PADRAO_USUARIO,
+  montarEmailInstitucional,
+  usuarioSeguePadraoInstitucional,
+} from '../features/usuarios/utils';
 
 export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [mensagem, setMensagem] = useState('');
+  const [erro, setErro] = useState('');
+  const [recuperandoSenha, setRecuperandoSenha] = useState(false);
 
   // LOGIN
   const handleLogin = async () => {
     if (!username || !password) {
-      alert('Preencha todos os campos');
+      setErro('Preencha usuário e senha.');
+      setMensagem('');
+      return;
+    }
+
+    if (!usuarioSeguePadraoInstitucional(username)) {
+      setErro(MENSAGEM_PADRAO_USUARIO);
+      setMensagem('');
       return;
     }
 
     try {
       setLoading(true);
-      const email = `${username.trim().toLowerCase()}@ibametro.ba.gov.br`;
-      await signInWithEmailAndPassword(auth, email, password);
-      alert('Login realizado com sucesso!');
+      setErro('');
+      setMensagem('Validando acesso...');
+      const email = montarEmailInstitucional(username);
+      const credencial = await signInWithEmailAndPassword(auth, email, password);
+      const perfil = await getDoc(doc(db, 'usuarios', credencial.user.email?.toLowerCase() || email));
+
+      if (!perfil.exists() || perfil.data().ativo === false) {
+        await signOut(auth);
+        setMensagem('');
+        setErro('Este acesso não está ativo. Solicite ajuda ao administrador.');
+        return;
+      }
+
+      setMensagem('Login realizado com sucesso.');
     } catch (error: any) {
       console.log(error);
+      await signOut(auth).catch(() => undefined);
+      setMensagem('');
       if (
         error.code === 'auth/invalid-credential' ||
         error.code === 'auth/wrong-password' ||
         error.code === 'auth/user-not-found'
       ) {
-        alert('Usuário ou senha inválidos');
+        setErro('Usuário ou senha inválidos.');
       } else {
-        alert(error.message);
+        setErro(error.message);
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // REGISTRO
-  const handleRegister = async () => {
-    if (!username || !password) {
-      alert('Preencha todos os campos');
-      return;
-    }
-
-    if (password.length < 6) {
-      alert('A senha precisa ter no mínimo 6 caracteres');
+  const handleRecuperarSenha = async () => {
+    if (!username || !usuarioSeguePadraoInstitucional(username)) {
+      setErro(`Informe seu usuário. ${MENSAGEM_PADRAO_USUARIO}`);
+      setMensagem('');
       return;
     }
 
     try {
-      setLoading(true);
-      const email = `${username.trim().toLowerCase()}@ibametro.ba.gov.br`;
-      await createUserWithEmailAndPassword(auth, email, password);
-      alert('Usuário criado com sucesso!');
+      setRecuperandoSenha(true);
+      setErro('');
+      setMensagem('Enviando link de redefinição...');
+      await sendPasswordResetEmail(auth, montarEmailInstitucional(username));
+      setMensagem('Confira seu e-mail para criar uma nova senha.');
     } catch (error: any) {
-      console.log(error);
-      if (error.code === 'auth/email-already-in-use') {
-        alert('Usuário já cadastrado');
-      } else {
-        alert(error.message);
-      }
+      setMensagem('');
+      setErro(error.code === 'auth/too-many-requests'
+        ? 'Muitas tentativas em pouco tempo. Aguarde alguns minutos.'
+        : 'Não foi possível enviar o link. Confira o usuário informado.');
     } finally {
-      setLoading(false);
+      setRecuperandoSenha(false);
     }
   };
 
@@ -90,7 +114,7 @@ export default function LoginScreen() {
 
         <TextInput
           style={styles.input}
-          placeholder="Usuário (Ex: fabio.admin)"
+          placeholder="Usuário ou e-mail institucional"
           value={username}
           onChangeText={setUsername}
           autoCapitalize="none"
@@ -109,7 +133,7 @@ export default function LoginScreen() {
         <TouchableOpacity
           style={styles.button}
           onPress={handleLogin}
-          disabled={loading}
+          disabled={loading || recuperandoSenha}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
@@ -118,16 +142,17 @@ export default function LoginScreen() {
           )}
         </TouchableOpacity>
 
-        {/* 🔥 Botão de Registro visível e com rolagem garantida */}
         <TouchableOpacity
-          style={styles.registerButton}
-          onPress={handleRegister}
-          disabled={loading}
+          style={styles.recoverButton}
+          onPress={handleRecuperarSenha}
+          disabled={loading || recuperandoSenha}
         >
-          <Text style={styles.registerText}>
-            Criar novo usuário (Primeiro Acesso)
-          </Text>
+          <Text style={styles.recoverText}>{recuperandoSenha ? 'Enviando link...' : 'Esqueci minha senha'}</Text>
         </TouchableOpacity>
+
+        {mensagem ? <Text style={styles.successText}>{mensagem}</Text> : null}
+        {erro ? <Text style={styles.errorText}>{erro}</Text> : null}
+
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -183,17 +208,30 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 0.4,
   },
-  registerButton: {
-    marginTop: 24,
-    paddingVertical: 14,
+  recoverButton: {
+    minHeight: 42,
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.22)',
+    marginTop: 12,
   },
-  registerText: {
-    color: '#e0f2fe',
+  recoverText: {
+    color: '#bae6fd',
+    fontSize: 14,
     fontWeight: '800',
+  },
+  successText: {
+    color: '#bbf7d0',
+    fontSize: 13,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginTop: 14,
+  },
+  errorText: {
+    color: '#fecaca',
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 18,
+    textAlign: 'center',
+    marginTop: 14,
   },
 });

@@ -22,7 +22,7 @@ export default function HeaderLista({
       {/* Lado Esquerdo: Info do Usuário */}
       <View style={styles.userInfo}>
         <Text style={styles.welcomeText}>Olá, {usuarioLogado || 'Usuário'}</Text>
-        <Text style={styles.roleText}>{isAdmin ? 'Administrador 🛠️' : 'Técnico 💻'}</Text>
+        <Text style={styles.roleText}>{isAdmin ? 'Administrador 🛠️' : 'Usuário comum'}</Text>
       </View>
 
       {/* Lado Direito: Ações (Scan, Adicionar, Sair) */}

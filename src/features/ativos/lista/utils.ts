@@ -24,12 +24,18 @@ export function filtrarAtivos(
   ativos: Ativo[],
   busca: string,
   statusSelecionado: StatusFiltroAtivo,
+  setorSelecionado = 'Todos os setores',
+  tipoSelecionado = 'Todos os tipos',
 ) {
   return ativos.filter((ativo) => {
     const matchesTexto = ativoCombinaComBusca(ativo, busca);
+    const matchesSetor =
+      setorSelecionado === 'Todos os setores' || ativo.setor === setorSelecionado;
+    const matchesTipo =
+      tipoSelecionado === 'Todos os tipos' || ativo.tipo === tipoSelecionado;
 
     if (statusSelecionado === 'Lixeira') {
-      return matchesTexto && ativo.deletado === true;
+      return matchesTexto && matchesSetor && matchesTipo && ativo.deletado === true;
     }
 
     if (ativo.deletado === true) {
@@ -39,7 +45,7 @@ export function filtrarAtivos(
     const matchesStatus =
       statusSelecionado === 'Todos' || ativo.status === statusSelecionado;
 
-    return matchesTexto && matchesStatus;
+    return matchesTexto && matchesStatus && matchesSetor && matchesTipo;
   });
 }
 

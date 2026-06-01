@@ -20,6 +20,7 @@ const COLUNAS_CSV = [
   'Portas Usadas',
   'Portas Ocupadas',
   'Componentes',
+  'Tela do Arquimedes',
   'Observações',
 ];
 
@@ -64,6 +65,7 @@ function montarLinhasCsv(ativos: Ativo[]) {
       ativo.portasUsadas,
       ativo.portasOcupadas?.join(', '),
       formatarComponentes(ativo.componentes),
+      ativo.tela,
       ativo.descricao,
     ]
       .map(escaparCampoCsv)
