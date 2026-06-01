@@ -32,6 +32,9 @@ flowchart LR
 7. Administrador cadastra um novo usuário pela área administrativa.
 8. Usuário redefine a senha pelo e-mail institucional.
 9. Administrador remove um usuário comum sem apagar o histórico operacional.
+10. Usuário comum entra em um portal simplificado, descreve o problema e abre um chamado sem procurar o ativo no inventário.
+11. Quando o responsável possui equipamento vinculado, o patrimônio é sugerido automaticamente para a equipe técnica.
+12. Gestor prioriza a fila e identifica qual técnico assumiu e concluiu cada atendimento.
 
 ## Modelo de dados
 
@@ -51,6 +54,8 @@ flowchart LR
 - Bloqueio imediato de acessos removidos e proteção contra exclusão acidental de administradores.
 - Histórico de auditoria.
 - Tratamento próprio para computadores all-in-one Arquimedes.
+- Portal de autoatendimento com abertura de chamados vinculados ao solicitante.
+- Rastreabilidade da triagem com prioridade, responsável e horários do atendimento.
 
 ## Testes
 

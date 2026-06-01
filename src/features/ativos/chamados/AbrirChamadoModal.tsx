@@ -33,9 +33,9 @@ export function AbrirChamadoModal({ ativos, usuarioLogado, visivel, onFechar }: 
       .filter((ativo) => !ativo.deletado)
       .filter((ativo) => (
         !texto ||
-        ativo.patrimonio.toLowerCase().includes(texto) ||
-        ativo.tipo.toLowerCase().includes(texto) ||
-        ativo.setor.toLowerCase().includes(texto)
+        ativo.patrimonio?.toLowerCase().includes(texto) ||
+        ativo.tipo?.toLowerCase().includes(texto) ||
+        ativo.setor?.toLowerCase().includes(texto)
       ))
       .slice(0, 30);
   }, [ativos, busca]);

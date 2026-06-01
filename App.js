@@ -11,10 +11,13 @@ import CadastroScreen from './src/screens/CadastroScreen';
 import DetalheAtivoScreen from './src/screens/DetalheAtivoScreen';
 import RelatoriosScreen from './src/screens/RelatoriosScreen';
 import GerenciarUsuariosScreen from './src/screens/GerenciarUsuariosScreen';
+import PortalUsuarioScreen from './src/screens/PortalUsuarioScreen';
 
 export default function App() {
   const [telaAtual, setTelaAtual] = useState('login');
   const [usuario, setUsuario] = useState('');
+  const [nomeUsuario, setNomeUsuario] = useState('');
+  const [emailUsuario, setEmailUsuario] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [carregando, setCarregando] = useState(true); 
   const [ativoSelecionado, setAtivoSelecionado] = useState(null);
@@ -45,9 +48,13 @@ export default function App() {
           if (userDocSnap.exists() && userDocSnap.data().ativo !== false) {
             const dadosUsuario = userDocSnap.data();
             setIsAdmin(dadosUsuario.role === 'admin');
+            setNomeUsuario(dadosUsuario.nome || nomeUsuario);
+            setEmailUsuario(emailCompleto.toLowerCase());
           } else {
             await signOut(auth);
             setUsuario('');
+            setNomeUsuario('');
+            setEmailUsuario('');
             setIsAdmin(false);
             setTelaAtual('login');
             setCarregando(false);
@@ -57,6 +64,8 @@ export default function App() {
           console.log("Erro ao buscar acesso:", error);
           await signOut(auth).catch(() => undefined);
           setUsuario('');
+          setNomeUsuario('');
+          setEmailUsuario('');
           setIsAdmin(false);
           setTelaAtual('login');
           setCarregando(false);
@@ -66,6 +75,8 @@ export default function App() {
         setTelaAtual('lista');
       } else {
         setUsuario('');
+        setNomeUsuario('');
+        setEmailUsuario('');
         setIsAdmin(false);
         setTelaAtual('login');
       }
@@ -132,6 +143,17 @@ export default function App() {
   }
 
   if (telaAtual === 'lista') {
+    if (!isAdmin) {
+      return (
+        <PortalUsuarioScreen
+          usuarioLogado={usuario}
+          nomeUsuario={nomeUsuario || usuario}
+          emailUsuario={emailUsuario}
+          onLogout={sair}
+        />
+      );
+    }
+
     return (
       <ListaScreen 
         usuarioLogado={usuario} // 🔥 Garanta que adicionou essa linha aqui!

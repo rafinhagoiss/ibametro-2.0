@@ -22,7 +22,8 @@ O arquivo `firestore.rules` define:
 - leitura de ativos somente para usuários autenticados com perfil ativo;
 - cadastro e exclusão de ativos somente para administradores;
 - atualização operacional limitada para usuários comuns;
-- criação e andamento de chamados para a equipe autenticada;
+- criação e acompanhamento de chamados para usuários ativos;
+- atualização do andamento de chamados somente para administradores;
 - histórico visível e imutável;
 - gestão de usuários somente para administradores.
 - exclusão somente de usuários comuns, impedindo remover administradores ou a própria conta.

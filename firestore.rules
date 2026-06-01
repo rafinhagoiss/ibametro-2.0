@@ -31,8 +31,8 @@ service cloud.firestore {
     }
 
     match /chamados/{chamadoId} {
-      allow read, create, update: if hasActiveProfile();
-      allow delete: if isAdmin();
+      allow read, create: if hasActiveProfile();
+      allow update, delete: if isAdmin();
     }
 
     match /historicoAtivos/{eventoId} {

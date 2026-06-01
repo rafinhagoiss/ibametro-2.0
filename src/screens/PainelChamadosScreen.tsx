@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { collection, doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore';
 
 import { db } from '../config/firebase';
 import { registrarHistoricoAtivo } from '../features/ativos/historico/registrarHistoricoAtivo';
@@ -18,10 +18,18 @@ import type { Ativo, Componentes } from '../types/ativo';
 interface Chamado {
   id: string;
   idAtivo: string;
+  patrimonio?: string;
+  categoria?: string;
+  prioridade?: string;
   descricaoProblema: string;
   usuario: string;
+  solicitanteNome?: string;
+  solicitanteEmail?: string;
+  responsavelAtendimento?: string;
   status: string;
   dataCriacao?: any;
+  dataAtendimento?: any;
+  dataResolucao?: any;
 }
 
 interface PainelChamadosScreenProps {
@@ -56,6 +64,12 @@ function obterMillis(data: any) {
   if (typeof data === 'number') return data;
 
   return null;
+}
+
+function formatarDataHora(data: any) {
+  const millis = obterMillis(data);
+
+  return millis ? new Date(millis).toLocaleString('pt-BR') : '';
 }
 
 function encontrarSetorCritico(ativos: Ativo[]) {
@@ -162,7 +176,19 @@ export default function PainelChamadosScreen({
     novoStatus: string,
   ) => {
     try {
-      await updateDoc(doc(db, 'chamados', idChamado), { status: novoStatus });
+      const chamadoAtual = chamados.find((chamado) => chamado.id === idChamado);
+      await updateDoc(doc(db, 'chamados', idChamado), {
+        status: novoStatus,
+        dataAtualizacao: serverTimestamp(),
+        ...(novoStatus === 'Em Andamento' && {
+          responsavelAtendimento: usuarioLogado,
+          dataAtendimento: serverTimestamp(),
+        }),
+        ...(novoStatus === 'Resolvido' && {
+          responsavelAtendimento: chamadoAtual?.responsavelAtendimento || usuarioLogado,
+          dataResolucao: serverTimestamp(),
+        }),
+      });
       const ativo = ativosMap[idAtivo];
 
       if (ativo) {
@@ -174,7 +200,7 @@ export default function PainelChamadosScreen({
         });
       }
 
-      if (novoStatus === 'Resolvido') {
+      if (novoStatus === 'Resolvido' && idAtivo && ativosMap[idAtivo]) {
         await updateDoc(doc(db, 'ativos', idAtivo), {
           status: 'Disponível',
           dataManutencao: null,
@@ -185,10 +211,17 @@ export default function PainelChamadosScreen({
     }
   };
 
-  const chamadosFiltrados = chamados.filter((chamado) => {
-    if (filtroStatus === 'Todos') return true;
-    return chamado.status === filtroStatus;
-  });
+  const chamadosFiltrados = chamados
+    .filter((chamado) => {
+      if (filtroStatus === 'Todos') return true;
+      return chamado.status === filtroStatus;
+    })
+    .sort((a, b) => {
+      const pesos: Record<string, number> = { Urgente: 3, Alta: 2, Normal: 1 };
+      const diferencaPrioridade = (pesos[b.prioridade || 'Normal'] || 1) - (pesos[a.prioridade || 'Normal'] || 1);
+
+      return diferencaPrioridade || ((b.dataCriacao?.toMillis?.() || 0) - (a.dataCriacao?.toMillis?.() || 0));
+    });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -288,8 +321,8 @@ export default function PainelChamadosScreen({
         ) : (
           chamadosFiltrados.map((chamado) => {
             const dadosAtivo = ativosMap[chamado.idAtivo] || {
-              patrimonio: 'Desconhecido',
-              tipo: 'Ativo removido',
+              patrimonio: chamado.patrimonio || 'Sem patrimônio vinculado',
+              tipo: chamado.idAtivo ? 'Ativo removido' : 'Atendimento geral',
               setor: '-',
             };
 
@@ -325,10 +358,37 @@ export default function PainelChamadosScreen({
                   {dadosAtivo.tipo} —{' '}
                   <Text style={styles.setorText}>📍 {dadosAtivo.setor}</Text>
                 </Text>
+                <View style={styles.ticketMetaRow}>
+                  <Text style={styles.categoriaText}>{chamado.categoria || 'Suporte técnico'}</Text>
+                  <Text style={[
+                    styles.prioridadeText,
+                    chamado.prioridade === 'Urgente' && styles.prioridadeUrgente,
+                    chamado.prioridade === 'Alta' && styles.prioridadeAlta,
+                  ]}>
+                    Prioridade {chamado.prioridade || 'Normal'}
+                  </Text>
+                </View>
                 <Text style={styles.descricaoText}>
                   "{chamado.descricaoProblema}"
                 </Text>
-                <Text style={styles.usuarioText}>Aberto por: {chamado.usuario}</Text>
+                <Text style={styles.usuarioText}>
+                  Solicitante: {chamado.solicitanteNome || chamado.usuario}
+                </Text>
+                {chamado.solicitanteEmail ? (
+                  <Text style={styles.usuarioEmailText}>{chamado.solicitanteEmail}</Text>
+                ) : null}
+                <Text style={styles.dataText}>
+                  Aberto em: {formatarDataHora(chamado.dataCriacao) || 'agora'}
+                </Text>
+                {chamado.responsavelAtendimento ? (
+                  <Text style={styles.responsavelText}>
+                    Atendimento: {chamado.responsavelAtendimento}
+                    {formatarDataHora(chamado.dataAtendimento) ? ` · ${formatarDataHora(chamado.dataAtendimento)}` : ''}
+                  </Text>
+                ) : null}
+                {formatarDataHora(chamado.dataResolucao) ? (
+                  <Text style={styles.resolucaoText}>Concluído em: {formatarDataHora(chamado.dataResolucao)}</Text>
+                ) : null}
 
                 {chamado.status !== 'Resolvido' && (
                   <View style={styles.actionsRow}>
@@ -529,6 +589,11 @@ const styles = StyleSheet.create({
   },
   patrimonioText: { fontSize: 17, fontWeight: '900', color: '#0f172a' },
   equipamentoText: { fontSize: 13, color: '#334155', fontWeight: '700' },
+  ticketMetaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 7, marginTop: 7 },
+  categoriaText: { color: '#1d4ed8', fontSize: 11, fontWeight: '900' },
+  prioridadeText: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, color: '#15803d', backgroundColor: '#ecfdf5', fontSize: 10, fontWeight: '900' },
+  prioridadeAlta: { color: '#b45309', backgroundColor: '#fffbeb' },
+  prioridadeUrgente: { color: '#b91c1c', backgroundColor: '#fef2f2' },
   setorText: { color: '#2563eb', fontWeight: '900' },
   descricaoText: {
     marginTop: 12,
@@ -542,6 +607,10 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
   },
   usuarioText: { marginTop: 10, fontSize: 12, color: '#64748b', fontWeight: '800' },
+  usuarioEmailText: { marginTop: 3, fontSize: 11, color: '#94a3b8', fontWeight: '700' },
+  dataText: { marginTop: 7, fontSize: 11, color: '#94a3b8', fontWeight: '700' },
+  responsavelText: { marginTop: 4, fontSize: 11, color: '#1d4ed8', fontWeight: '800' },
+  resolucaoText: { marginTop: 4, fontSize: 11, color: '#15803d', fontWeight: '800' },
   badge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
