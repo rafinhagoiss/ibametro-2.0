@@ -41,3 +41,5 @@ npx tsc --noEmit
 - `docs`: material de apoio para configuração e apresentação do TCC.
 
 Consulte [docs/TCC.md](docs/TCC.md) para o roteiro de apresentação e [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md) para publicar as regras de segurança.
+
+As fotografias da visita técnica estão organizadas em [docs/evidencias/README.md](docs/evidencias/README.md).

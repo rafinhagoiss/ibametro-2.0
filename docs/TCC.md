@@ -2,15 +2,11 @@
 
 ## Problema
 
-No setor de TI, o controle dos equipamentos ainda costuma depender muito de planilhas, anotações ou conferência manual. Isso acaba dificultando a localização dos ativos, o acompanhamento de defeitos, a prestação de contas e a consulta ao histórico de manutenção de cada equipamento.
-
-Quando não existe um sistema centralizado, também fica mais difícil saber qual equipamento está em uso, qual está em manutenção, quem abriu determinado chamado e quais ações já foram realizadas pela equipe técnica.
+O controle manual de ativos de TI dificulta localizar equipamentos, acompanhar defeitos, prestar contas e manter um histórico confiável das intervenções.
 
 ## Objetivo
 
-O objetivo do projeto é desenvolver uma aplicação para organizar o inventário e o acompanhamento dos ativos de TI, como computadores, switches e computadores all-in-one Arquimedes.
-
-A ideia é reunir, em um único sistema, informações sobre patrimônio, setor, estado do equipamento, histórico de alterações e chamados de manutenção. Dessa forma, usuários, técnicos e gestores conseguem acessar as informações com mais facilidade e acompanhar melhor o ciclo de vida dos equipamentos.
+Centralizar inventário, rastreabilidade e manutenção de computadores, switches e computadores all-in-one Arquimedes em uma aplicação acessível para usuários e gestores.
 
 ## Arquitetura
 
@@ -25,58 +21,53 @@ flowchart LR
   F --> US["usuarios"]
 ```
 
-A aplicação foi construída em React Native com Expo, usando Firebase para autenticação e banco de dados. O Firebase Authentication controla o acesso dos usuários, enquanto o Cloud Firestore armazena os dados dos ativos, chamados, histórico e usuários cadastrados.
-
 ## Casos de uso demonstráveis
 
-Durante a apresentação, é possível demonstrar algumas situações práticas do sistema:
-
-1. O administrador cadastra um novo computador Arquimedes.
-2. Ao informar que a tela está danificada, o sistema altera o status do equipamento para manutenção.
-3. Um usuário comum abre um chamado pela Central de Chamados.
-4. O gestor acompanha os chamados abertos e visualiza os indicadores da central.
-5. O administrador consulta a linha do tempo de um ativo para verificar alterações anteriores.
-6. O gestor exporta o inventário em CSV para conferência ou auditoria.
-7. O administrador cadastra um novo usuário pela área administrativa.
-8. O usuário redefine a senha pelo e-mail institucional.
-9. O administrador remove um usuário comum sem apagar o histórico das ações já realizadas.
-10. O usuário comum acessa um portal simplificado, descreve o problema e abre um chamado sem precisar procurar o ativo manualmente.
-11. Quando o usuário possui um equipamento vinculado, o sistema sugere automaticamente o patrimônio para a equipe técnica.
-12. O gestor consegue acompanhar a prioridade do chamado, o técnico responsável e os horários de atendimento.
+1. Administrador cadastra um novo Arquimedes e marca a tela como danificada.
+2. O equipamento recebe status de manutenção automaticamente.
+3. Usuário comum abre um chamado pela Central de Chamados.
+4. Gestor acompanha o chamado e os indicadores na Central de Chamados.
+5. Administrador consulta a linha do tempo do ativo.
+6. Gestor exporta o inventário em CSV para auditoria.
+7. Administrador cadastra um novo usuário pela área administrativa.
+8. Usuário redefine a senha pelo e-mail institucional.
+9. Administrador remove um usuário comum sem apagar o histórico operacional.
+10. Usuário comum entra em um portal simplificado, descreve o problema e abre um chamado sem procurar o ativo no inventário.
+11. Quando o responsável possui equipamento vinculado, o patrimônio é sugerido automaticamente para a equipe técnica.
+12. Gestor prioriza a fila e identifica qual técnico assumiu e concluiu cada atendimento.
 
 ## Modelo de dados
 
-| Coleção           | Finalidade                                                                                                  |
-| ----------------- | ----------------------------------------------------------------------------------------------------------- |
-| `ativos`          | Guarda as informações dos equipamentos, como patrimônio, tipo, setor, hardware, rede, tela e situação atual |
-| `chamados`        | Registra os problemas informados pelos usuários, o ativo relacionado, o responsável e o andamento           |
-| `historicoAtivos` | Armazena a linha do tempo das alterações feitas nos equipamentos                                            |
-| `usuarios`        | Controla os perfis de acesso, separando usuários comuns e administradores                                   |
+| Coleção | Finalidade |
+| --- | --- |
+| `ativos` | Patrimônio, tipo, setor, hardware, rede, tela e situação atual |
+| `chamados` | Problema informado, ativo associado, responsável e andamento |
+| `historicoAtivos` | Linha do tempo imutável das ações |
+| `usuarios` | Perfil de acesso administrativo ou comum |
 
-## Diferenciais do projeto
+## Diferenciais
 
-O sistema possui alguns recursos que ajudam a tornar o controle dos ativos mais organizado:
-
-* Uso de QR Code para facilitar a identificação física dos equipamentos.
-* Visualização das portas do switch, ajudando no controle da rede.
-* Exportação do inventário em CSV para conferência e prestação de contas.
-* Regras de acesso por perfil de usuário.
-* Bloqueio de acessos removidos.
-* Proteção contra exclusão acidental de administradores.
-* Histórico de auditoria das ações realizadas.
-* Tratamento específico para computadores all-in-one Arquimedes.
-* Portal de autoatendimento para abertura de chamados.
-* Registro da triagem dos chamados, com prioridade, responsável e horários.
+- QR Code para identificação física.
+- Representação visual das portas do switch.
+- Exportação CSV para prestação de contas.
+- Regras de acesso por perfil.
+- Bloqueio imediato de acessos removidos e proteção contra exclusão acidental de administradores.
+- Histórico de auditoria.
+- Tratamento próprio para computadores all-in-one Arquimedes.
+- Portal de autoatendimento com abertura de chamados vinculados ao solicitante.
+- Rastreabilidade da triagem com prioridade, responsável e horários do atendimento.
 
 ## Testes
 
-Para validar o funcionamento do projeto, foram utilizados testes automatizados e verificação de tipos.
-
-Os comandos utilizados foram:
+Execute:
 
 ```bash
 npm test
 npx tsc --noEmit
 ```
 
-Os testes verificam regras importantes do sistema, como a classificação dos equipamentos e a mudança automática para manutenção quando uma tela ou componente apresenta defeito.
+Os testes automatizados validam a classificação de equipamentos e a transição para manutenção quando uma tela ou componente apresenta defeito.
+
+## Evidências da visita técnica
+
+As fotografias da observação em campo estão organizadas em [docs/evidencias](evidencias/README.md). Elas registram ambientes administrativos, estações de trabalho, infraestrutura de rede e áreas laboratoriais consideradas no levantamento do problema.
