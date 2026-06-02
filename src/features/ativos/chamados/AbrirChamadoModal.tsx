@@ -55,13 +55,18 @@ export function AbrirChamadoModal({ ativos, usuarioLogado, visivel, onFechar }: 
 
     try {
       setSalvando(true);
-      await registrarChamado({
+      const resultado = await registrarChamado({
         ativo: ativoSelecionado,
         descricao,
         usuario: usuarioLogado,
       });
       fechar();
-      Alert.alert('Chamado aberto', 'O equipamento foi enviado para manutenção.');
+      Alert.alert(
+        'Chamado aberto',
+        resultado.emailEnfileirado
+          ? 'O equipamento foi enviado para manutenção e a notificação de teste entrou na fila.'
+          : 'O equipamento foi enviado para manutenção.',
+      );
     } catch (error: any) {
       Alert.alert('Não foi possível abrir o chamado', error?.message || 'Tente novamente.');
     } finally {

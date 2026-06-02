@@ -1,8 +1,10 @@
-import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 
 import { db } from '../../../config/firebase';
 import type { Ativo } from '../../../types/ativo';
 import { registrarHistoricoAtivo } from '../historico/registrarHistoricoAtivo';
+import { criarNotificacaoEmailDemo } from './emailDemo';
+import { enfileirarEmailTcc } from './enfileirarEmailTcc';
 
 interface Params {
   ativo?: Ativo | null;
@@ -29,7 +31,17 @@ export async function registrarChamado({
     throw new Error('Descreva o defeito antes de abrir o chamado.');
   }
 
-  await addDoc(collection(db, 'chamados'), {
+  const chamadoRef = doc(collection(db, 'chamados'));
+  const notificacaoEmailDemo = criarNotificacaoEmailDemo({
+    chamadoId: chamadoRef.id,
+    patrimonio: ativo?.patrimonio,
+    categoria,
+    descricao: problema,
+    solicitanteNome,
+    solicitanteEmail,
+  });
+
+  await setDoc(chamadoRef, {
     idAtivo: ativo?.id || '',
     patrimonio: ativo?.patrimonio || 'Sem patrimônio vinculado',
     descricaoProblema: problema,
@@ -38,11 +50,21 @@ export async function registrarChamado({
     prioridade: prioridade?.trim() || 'Normal',
     solicitanteNome: solicitanteNome?.trim() || usuario,
     solicitanteEmail: solicitanteEmail?.trim().toLowerCase() || '',
+    notificacaoEmailDemo,
     status: 'Pendente',
     dataCriacao: serverTimestamp(),
   });
 
-  if (!ativo) return;
+  let emailEnfileirado = false;
+
+  try {
+    await enfileirarEmailTcc(chamadoRef.id, notificacaoEmailDemo);
+    emailEnfileirado = true;
+  } catch {
+    // O chamado continua válido enquanto a extensão de e-mail é configurada.
+  }
+
+  if (!ativo) return { emailEnfileirado };
 
   await updateDoc(doc(db, 'ativos', ativo.id), {
     status: 'Manutenção',
@@ -57,4 +79,6 @@ export async function registrarChamado({
     usuario,
     detalhes: problema,
   });
+
+  return { emailEnfileirado };
 }

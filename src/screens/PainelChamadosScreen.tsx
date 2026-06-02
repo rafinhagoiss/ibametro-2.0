@@ -8,11 +8,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { collection, doc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore';
 
 import { db } from '../config/firebase';
 import { registrarHistoricoAtivo } from '../features/ativos/historico/registrarHistoricoAtivo';
 import { AbrirChamadoModal } from '../features/ativos/chamados/AbrirChamadoModal';
+import type { NotificacaoEmailDemo } from '../features/ativos/chamados/emailDemo';
 import type { Ativo, Componentes } from '../types/ativo';
 
 interface Chamado {
@@ -30,6 +32,7 @@ interface Chamado {
   dataCriacao?: any;
   dataAtendimento?: any;
   dataResolucao?: any;
+  notificacaoEmailDemo?: NotificacaoEmailDemo;
 }
 
 interface PainelChamadosScreenProps {
@@ -111,6 +114,7 @@ export default function PainelChamadosScreen({
   const [ativosMap, setAtivosMap] = useState<Record<string, Ativo>>({});
   const [filtroStatus, setFiltroStatus] = useState<FiltroChamado>('Todos');
   const [modalNovoChamadoVisivel, setModalNovoChamadoVisivel] = useState(false);
+  const [mostrarEmailsDemo, setMostrarEmailsDemo] = useState(false);
 
   useEffect(() => {
     const unsubAtivos = onSnapshot(collection(db, 'ativos'), (snapshot) => {
@@ -169,6 +173,9 @@ export default function PainelChamadosScreen({
     );
   }).length;
   const setorCritico = encontrarSetorCritico(ativos);
+  const emailsDemo = chamados
+    .filter((chamado) => chamado.notificacaoEmailDemo)
+    .slice(0, 5);
 
   const handleAtualizarStatus = async (
     idChamado: string,
@@ -261,6 +268,53 @@ export default function PainelChamadosScreen({
       <TouchableOpacity style={styles.openTicketButton} onPress={() => setModalNovoChamadoVisivel(true)}>
         <Text style={styles.openTicketButtonText}>+ Abrir chamado</Text>
       </TouchableOpacity>
+
+      <View style={styles.emailDemoSection}>
+        <TouchableOpacity
+          style={styles.emailDemoHeader}
+          onPress={() => setMostrarEmailsDemo((valorAtual) => !valorAtual)}
+        >
+          <View style={styles.emailDemoTitleRow}>
+            <MaterialCommunityIcons name="email-outline" size={21} color="#1d4ed8" />
+            <View>
+              <Text style={styles.emailDemoTitle}>Notificações por e-mail</Text>
+              <Text style={styles.emailDemoSubtitle}>Fila de teste do TCC</Text>
+            </View>
+          </View>
+          <View style={styles.emailDemoHeaderRight}>
+            <Text style={styles.emailDemoCount}>{emailsDemo.length}</Text>
+            <MaterialCommunityIcons
+              name={mostrarEmailsDemo ? 'chevron-up' : 'chevron-down'}
+              size={22}
+              color="#64748b"
+            />
+          </View>
+        </TouchableOpacity>
+
+        {mostrarEmailsDemo ? (
+          <View style={styles.emailDemoContent}>
+            <Text style={styles.emailDemoHint}>
+              Ambiente de teste: o envio real depende da extensão Trigger Email configurada no Firebase. A senha nunca fica no aplicativo.
+            </Text>
+            {emailsDemo.length ? emailsDemo.map((chamado) => {
+              const email = chamado.notificacaoEmailDemo!;
+
+              return (
+                <View key={chamado.id} style={styles.emailDemoCard}>
+                  <View style={styles.emailDemoCardHeader}>
+                    <Text style={styles.emailDemoSubject}>{email.assunto}</Text>
+                    <Text style={styles.emailDemoBadge}>{email.status}</Text>
+                  </View>
+                  <Text style={styles.emailDemoRecipient}>Para: {email.destinatario}</Text>
+                  <Text style={styles.emailDemoBody} numberOfLines={3}>{email.corpo}</Text>
+                </View>
+              );
+            }) : (
+              <Text style={styles.emailDemoEmpty}>Abra um chamado para gerar a primeira notificação demonstrativa.</Text>
+            )}
+          </View>
+        ) : null}
+      </View>
 
       <View style={styles.inventoryMetricsContainer}>
         <View style={[styles.inventoryMetricCard, { borderLeftColor: '#991b1b' }]}>
@@ -495,6 +549,38 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563eb',
   },
   openTicketButtonText: { color: '#fff', fontSize: 15, fontWeight: '900' },
+  emailDemoSection: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    overflow: 'hidden',
+  },
+  emailDemoHeader: {
+    minHeight: 60,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  emailDemoTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  emailDemoTitle: { color: '#0f2742', fontSize: 13, fontWeight: '900' },
+  emailDemoSubtitle: { marginTop: 2, color: '#64748b', fontSize: 11, fontWeight: '700' },
+  emailDemoHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  emailDemoCount: { minWidth: 22, textAlign: 'center', color: '#1d4ed8', fontSize: 12, fontWeight: '900' },
+  emailDemoContent: { padding: 12, borderTopWidth: 1, borderTopColor: '#dbeafe', gap: 8, backgroundColor: '#f8fbff' },
+  emailDemoHint: { color: '#64748b', fontSize: 11, lineHeight: 16, fontWeight: '700' },
+  emailDemoCard: { padding: 10, borderWidth: 1, borderColor: '#dbeafe', borderRadius: 8, backgroundColor: '#ffffff' },
+  emailDemoCardHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
+  emailDemoSubject: { flex: 1, color: '#0f2742', fontSize: 12, lineHeight: 16, fontWeight: '900' },
+  emailDemoBadge: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, color: '#166534', backgroundColor: '#dcfce7', fontSize: 9, fontWeight: '900' },
+  emailDemoRecipient: { marginTop: 6, color: '#1d4ed8', fontSize: 10, fontWeight: '800' },
+  emailDemoBody: { marginTop: 5, color: '#64748b', fontSize: 10, lineHeight: 14 },
+  emailDemoEmpty: { color: '#64748b', fontSize: 11, fontWeight: '700' },
   inventoryMetricsContainer: {
     backgroundColor: '#edf6ff',
     paddingHorizontal: 16,

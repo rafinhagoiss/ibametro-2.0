@@ -11,6 +11,7 @@ Aplicativo de inventário de equipamentos de TI desenvolvido com React Native, E
 - Exportação do inventário em CSV.
 - Lixeira com restauração e exclusão definitiva por administrador.
 - Abertura e acompanhamento de chamados técnicos.
+- Fila de e-mail de teste para apresentar notificações de chamados sem utilizar credenciais institucionais no aplicativo.
 - Portal simplificado para o usuário comum abrir chamados sem navegar pelo inventário.
 - Identificação automática do equipamento vinculado ao solicitante quando disponível.
 - Priorização de chamados e registro do responsável técnico pelo atendimento.

@@ -19,6 +19,7 @@ flowchart LR
   F --> CH["chamados"]
   F --> HI["historicoAtivos"]
   F --> US["usuarios"]
+  CH --> ED["fila de e-mail de teste"]
 ```
 
 ## Casos de uso demonstráveis
@@ -35,6 +36,7 @@ flowchart LR
 10. Usuário comum entra em um portal simplificado, descreve o problema e abre um chamado sem procurar o ativo no inventário.
 11. Quando o responsável possui equipamento vinculado, o patrimônio é sugerido automaticamente para a equipe técnica.
 12. Gestor prioriza a fila e identifica qual técnico assumiu e concluiu cada atendimento.
+13. A abertura do chamado gera uma mensagem para a fila de e-mail de teste, sem expor credenciais no aplicativo.
 
 ## Modelo de dados
 
@@ -56,6 +58,11 @@ flowchart LR
 - Tratamento próprio para computadores all-in-one Arquimedes.
 - Portal de autoatendimento com abertura de chamados vinculados ao solicitante.
 - Rastreabilidade da triagem com prioridade, responsável e horários do atendimento.
+- Fila de e-mail de teste para demonstrar notificações sem utilizar credenciais institucionais no aplicativo.
+
+## Notificações de teste
+
+Cada novo chamado armazena uma prévia e tenta adicionar uma mensagem à coleção `mail`. Quando a extensão oficial Trigger Email estiver configurada no Firebase, essa fila envia notificações para a conta criada exclusivamente para o TCC. A senha de aplicativo é configurada no Firebase e nunca fica armazenada no código do aplicativo.
 
 ## Testes
 

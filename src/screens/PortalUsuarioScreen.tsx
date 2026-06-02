@@ -130,7 +130,7 @@ export default function PortalUsuarioScreen({
       setSalvando(true);
       setErro('');
       setMensagem('Enviando sua solicitação...');
-      await registrarChamado({
+      const resultado = await registrarChamado({
         ativo: ativoSelecionado,
         descricao,
         usuario: usuarioLogado,
@@ -140,7 +140,11 @@ export default function PortalUsuarioScreen({
         solicitanteEmail: emailUsuario,
       });
       setDescricao('');
-      setMensagem('Chamado aberto com sucesso. A equipe técnica já consegue visualizar sua solicitação.');
+      setMensagem(
+        resultado.emailEnfileirado
+          ? 'Chamado aberto com sucesso. A notificação de teste foi colocada na fila de e-mail.'
+          : 'Chamado aberto com sucesso. A equipe técnica já consegue visualizar sua solicitação.',
+      );
     } catch (error: any) {
       setMensagem('');
       setErro(error?.message || 'Não foi possível abrir o chamado. Tente novamente.');

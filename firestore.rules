@@ -40,6 +40,20 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    match /mail/{emailId} {
+      allow read: if isAdmin();
+      allow create: if hasActiveProfile()
+        && request.resource.data.keys().hasOnly([
+          'chamadoId',
+          'to',
+          'message',
+          'dataCriacao'
+        ])
+        && request.resource.data.to == ['ibametroativos.demo@gmail.com']
+        && request.resource.data.message.keys().hasOnly(['subject', 'text']);
+      allow update, delete: if false;
+    }
+
     match /usuarios/{email} {
       allow get: if hasActiveProfile() && (email == request.auth.token.email || isAdmin());
       allow list, create, update: if isAdmin();

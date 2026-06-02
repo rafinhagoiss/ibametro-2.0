@@ -21,10 +21,15 @@ export function AbrirChamadoCard({ ativo, usuarioLogado, onChamadoAberto }: Prop
 
     try {
       setSalvando(true);
-      await registrarChamado({ ativo, descricao, usuario: usuarioLogado });
+      const resultado = await registrarChamado({ ativo, descricao, usuario: usuarioLogado });
       setDescricao('');
       onChamadoAberto?.();
-      Alert.alert('Chamado aberto', 'O equipamento foi enviado para manutenção.');
+      Alert.alert(
+        'Chamado aberto',
+        resultado.emailEnfileirado
+          ? 'O equipamento foi enviado para manutenção e a notificação de teste entrou na fila.'
+          : 'O equipamento foi enviado para manutenção.',
+      );
     } catch {
       Alert.alert('Erro', 'Não foi possível abrir o chamado.');
     } finally {

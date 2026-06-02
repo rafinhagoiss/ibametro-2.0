@@ -19,6 +19,10 @@ import {
   ativoRecebeResponsavelFicticio,
   gerarResponsaveisFicticios,
 } from '../src/features/ativos/responsaveis/gerarResponsaveisFicticios.ts';
+import {
+  criarNotificacaoEmailDemo,
+  EMAIL_DEMO_DESTINATARIO,
+} from '../src/features/ativos/chamados/emailDemo.ts';
 
 const componentesOk = {
   memoriaRam: 'OK',
@@ -99,4 +103,20 @@ test('responsáveis fictícios preservam cadastros já preenchidos e geram nomes
   assert.equal(atualizacoes.length, 2);
   assert.equal(new Set(atualizacoes.map(({ responsavel }) => responsavel.responsavel)).size, 2);
   assert.deepEqual(atualizacoes.map(({ responsavel }) => responsavel.matricula), ['DEMO-0001', 'DEMO-0002']);
+});
+
+test('e-mail de teste utiliza somente a conta criada para o TCC', () => {
+  const notificacao = criarNotificacaoEmailDemo({
+    chamadoId: 'abc123456789',
+    patrimonio: 'PAT-001',
+    categoria: 'Computador',
+    descricao: 'Computador lento',
+    solicitanteNome: 'Usuário Demonstração',
+  });
+
+  assert.equal(EMAIL_DEMO_DESTINATARIO, 'ibametroativos.demo@gmail.com');
+  assert.equal(notificacao.destinatario, EMAIL_DEMO_DESTINATARIO);
+  assert.equal(notificacao.status, 'Solicitado');
+  assert.match(notificacao.assunto, /PAT-001/);
+  assert.match(notificacao.corpo, /projeto acadêmico/);
 });
